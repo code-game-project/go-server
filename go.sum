@@ -1,5 +1,5 @@
-github.com/Bananenpro/log v0.0.0-20220205164222-6170d81beade h1:6fuVstQAt4kGkx82kgPGeO5bxsKdPe4gwuN57Kz/6uM=
-github.com/Bananenpro/log v0.0.0-20220205164222-6170d81beade/go.mod h1:qnAtfIYshWbxkQ+R9k3TuYNLMnTjn8UzFMdEIhDO8yI=
+github.com/Bananenpro/log v0.0.0-20220508140000-144878cd2d13 h1:hJERTeddAsIel2NsRXB0jTpoawfoGNV/vPW+3cNpkn8=
+github.com/Bananenpro/log v0.0.0-20220508140000-144878cd2d13/go.mod h1:qnAtfIYshWbxkQ+R9k3TuYNLMnTjn8UzFMdEIhDO8yI=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=

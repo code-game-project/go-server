@@ -1,11 +1,56 @@
-# codegame-server
+# Go-Server
+![CodeGame Version](https://img.shields.io/badge/CodeGame-v0.1-orange)
+![Go version](https://img.shields.io/github/go-mod/go-version/code-game-project/go-server)
 
-Create your own [CodeGame](https://code-game-project.github.io/) v0.0.5 game servers in [Go](https://go.dev/).
+This is the Go server library for [CodeGame](https://github.com/code-game-project).
 
 ## Installation
 
 ```sh
 go get github.com/code-game-project/go-server/cg
+```
+
+## Usage
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/code-game-project/go-server/cg"
+)
+
+type Game struct {
+	id     string
+	server *cg.Server
+}
+
+func (g *Game) OnPlayerJoined(player *cg.Player) {
+	fmt.Println("Player joined:", player.Username)
+}
+
+func (g *Game) OnPlayerLeft(player *cg.Player) {
+	fmt.Println("Player left:", player.Username)
+}
+
+func (g *Game) OnPlayerEvent(player *cg.Player, event cg.Event) error {
+	fmt.Println("Player event:", player.Username, event)
+	return nil
+}
+
+func main() {
+	server := cg.NewServer(cg.ServerConfig{
+		Port: 8080,
+	})
+
+	server.Run(func(gameId string) cg.Game {
+		return &Game{
+			id:     gameId,
+			server: server,
+		}
+	})
+}
 ```
 
 ## License
