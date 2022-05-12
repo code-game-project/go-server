@@ -19,6 +19,7 @@ import (
 type Game interface {
 	OnPlayerJoined(player *Player)
 	OnPlayerLeft(player *Player)
+	OnPlayerConnected(player *Player)
 	OnPlayerEvent(player *Player, event Event) error
 }
 
@@ -241,7 +242,8 @@ func (s *Server) leaveGame(player *Player) error {
 	game := s.games[player.gameId]
 	s.gamesLock.RUnlock()
 
-	s.Emit(game.id, player.Id, EventLeftGame, EventLeaveGameData{})
+	s.Emit(game.id, player.Id, EventLeftGame, EventLeftGameData{})
+	game.game.OnPlayerLeft(player)
 
 	s.gamesLock.Lock()
 	delete(game.players, player.Id)
@@ -310,6 +312,8 @@ func (s *Server) connect(gameId, playerId, playerSecret string, socket *socket) 
 	player.sockets[socket.id] = socket
 	socket.player = player
 	s.gamesLock.Unlock()
+
+	game.game.OnPlayerConnected(player)
 
 	return s.Emit(gameId, playerId, EventConnected, EventConnectedData{})
 }

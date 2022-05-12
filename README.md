@@ -34,6 +34,10 @@ func (g *Game) OnPlayerLeft(player *cg.Player) {
 	fmt.Println("Player left:", player.Username)
 }
 
+func (g *Game) OnPlayerConnected(player *cg.Player) {
+	fmt.Println("Player connected a new socket:", player.Username)
+}
+
 func (g *Game) OnPlayerEvent(player *cg.Player, event cg.Event) error {
 	fmt.Println("Player event:", player.Username, event)
 	return nil
