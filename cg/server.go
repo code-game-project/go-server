@@ -19,7 +19,7 @@ import (
 type Game interface {
 	OnPlayerJoined(player *Player)
 	OnPlayerLeft(player *Player)
-	OnPlayerConnected(player *Player)
+	OnPlayerSocketConnected(player *Player, socket *Socket)
 	OnPlayerEvent(player *Player, event Event) error
 }
 
@@ -34,7 +34,7 @@ type game struct {
 
 type Server struct {
 	socketsPlayersLock sync.RWMutex
-	sockets            map[string]*socket
+	sockets            map[string]*Socket
 	players            map[string]*Player
 
 	gamesLock sync.RWMutex
@@ -63,7 +63,7 @@ type NewGame func(gameId string) Game
 
 func NewServer(config ServerConfig) *Server {
 	server := &Server{
-		sockets: make(map[string]*socket),
+		sockets: make(map[string]*Socket),
 		players: make(map[string]*Player),
 		games:   make(map[string]*game),
 
@@ -136,19 +136,19 @@ func (s *Server) connectSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	socket := &socket{
-		id:     uuid.NewString(),
+	socket := &Socket{
+		Id:     uuid.NewString(),
 		server: s,
 		conn:   conn,
 	}
 
 	s.socketsPlayersLock.Lock()
-	s.sockets[socket.id] = socket
+	s.sockets[socket.Id] = socket
 	s.socketsPlayersLock.Unlock()
 
 	go socket.handleConnection()
 
-	log.Tracef("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.id)
+	log.Tracef("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
@@ -195,7 +195,7 @@ func (s *Server) createGame(public bool) (string, error) {
 	return id, nil
 }
 
-func (s *Server) joinGame(gameId, username string, joiningSocket *socket) error {
+func (s *Server) joinGame(gameId, username string, joiningSocket *Socket) error {
 	s.gamesLock.Lock()
 	game, ok := s.games[gameId]
 	if !ok {
@@ -213,13 +213,13 @@ func (s *Server) joinGame(gameId, username string, joiningSocket *socket) error 
 		Username: username,
 		Secret:   generatePlayerSecret(),
 		server:   s,
-		sockets:  make(map[string]*socket),
+		sockets:  make(map[string]*Socket),
 		gameId:   gameId,
 	}
 
 	game.players[playerId] = player
 	joiningSocket.player = player
-	game.players[playerId].sockets[joiningSocket.id] = joiningSocket
+	game.players[playerId].sockets[joiningSocket.Id] = joiningSocket
 
 	s.gamesLock.Unlock()
 
@@ -250,7 +250,7 @@ func (s *Server) leaveGame(player *Player) error {
 	s.gamesLock.Unlock()
 
 	for _, socket := range player.sockets {
-		player.disconnectSocket(socket.id)
+		player.disconnectSocket(socket.Id)
 	}
 
 	log.Tracef("Player %s (%s) left the game %s", player.Id, player.Username, player.gameId)
@@ -285,7 +285,7 @@ func (s *Server) RemoveGame(gameId string) error {
 	return nil
 }
 
-func (s *Server) connect(gameId, playerId, playerSecret string, socket *socket) error {
+func (s *Server) connect(gameId, playerId, playerSecret string, socket *Socket) error {
 	s.gamesLock.RLock()
 	game, ok := s.games[gameId]
 	s.gamesLock.RUnlock()
@@ -309,11 +309,11 @@ func (s *Server) connect(gameId, playerId, playerSecret string, socket *socket) 
 	}
 
 	s.gamesLock.Lock()
-	player.sockets[socket.id] = socket
+	player.sockets[socket.Id] = socket
 	socket.player = player
 	s.gamesLock.Unlock()
 
-	game.game.OnPlayerConnected(player)
+	game.game.OnPlayerSocketConnected(player, socket)
 
 	return s.Emit(gameId, playerId, EventConnected, EventConnectedData{})
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type socket struct {
-	id     string
+type Socket struct {
+	Id     string
 	server *Server
 	player *Player
 	conn   *websocket.Conn
@@ -22,17 +22,17 @@ var (
 	ErrDecodeFailed       = errors.New("failed to decode event")
 )
 
-func (s *socket) handleConnection() {
+func (s *Socket) handleConnection() {
 	for {
 		event, err := s.receiveEvent()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Tracef("Socket %s disconnected.", s.id)
+				log.Tracef("Socket %s disconnected.", s.Id)
 				break
 			} else if err == ErrDecodeFailed || err == ErrInvalidMessageType {
 				s.sendError(err.Error())
 			} else {
-				log.Warnf("Socket %s disconnected unexpectedly: %s", s.id, err)
+				log.Warnf("Socket %s disconnected unexpectedly: %s", s.Id, err)
 				break
 			}
 		}
@@ -57,13 +57,13 @@ func (s *socket) handleConnection() {
 		}
 	}
 	if s.player != nil {
-		s.player.disconnectSocket(s.id)
+		s.player.disconnectSocket(s.Id)
 	} else {
-		s.server.removeSocket(s.id)
+		s.server.removeSocket(s.Id)
 	}
 }
 
-func (s *socket) createGame(event Event) error {
+func (s *Socket) createGame(event Event) error {
 	var data EventCreateGameData
 	err := event.UnmarshalData(&data)
 	if err != nil {
@@ -75,20 +75,20 @@ func (s *socket) createGame(event Event) error {
 		return err
 	}
 
-	s.sendEvent("server", EventCreatedGame, EventCreatedGameData{
+	s.Send("server", EventCreatedGame, EventCreatedGameData{
 		GameId: gameId,
 	})
 
 	if data.Public {
-		log.Tracef("Socket %s created a new public game: %s", s.id, gameId)
+		log.Tracef("Socket %s created a new public game: %s", s.Id, gameId)
 	} else {
-		log.Tracef("Socket %s created a new private game: %s", s.id, gameId)
+		log.Tracef("Socket %s created a new private game: %s", s.Id, gameId)
 	}
 
 	return nil
 }
 
-func (s *socket) joinGame(event Event) error {
+func (s *Socket) joinGame(event Event) error {
 	if s.player != nil {
 		return errors.New("already joined")
 	}
@@ -104,7 +104,7 @@ func (s *socket) joinGame(event Event) error {
 		return err
 	}
 
-	err = s.sendEvent("server", EventPlayerSecret, EventPlayerSecretData{
+	err = s.Send("server", EventPlayerSecret, EventPlayerSecretData{
 		Secret: s.player.Secret,
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ func (s *socket) joinGame(event Event) error {
 	return s.sendGameInfo()
 }
 
-func (s *socket) connect(event Event) error {
+func (s *Socket) connect(event Event) error {
 	if s.player != nil {
 		return errors.New("already connected")
 	}
@@ -130,14 +130,14 @@ func (s *socket) connect(event Event) error {
 		return err
 	}
 
-	log.Tracef("Socket %s connected to player %s (%s).", s.id, s.player.Id, s.player.Username)
+	log.Tracef("Socket %s connected to player %s (%s).", s.Id, s.player.Id, s.player.Username)
 
 	return s.sendGameInfo()
 }
 
-func (s *socket) disconnect() {
+func (s *Socket) disconnect() {
 	if s.player != nil && s.player.gameId != "" {
-		s.sendEvent(s.player.Id, EventDisconnected, EventDisconnectedData{})
+		s.server.Emit(s.player.gameId, s.player.Id, EventDisconnected, EventDisconnectedData{})
 	}
 
 	err := s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "disconnect"), time.Now().Add(5*time.Second))
@@ -146,7 +146,7 @@ func (s *socket) disconnect() {
 	}
 }
 
-func (s *socket) receiveEvent() (Event, error) {
+func (s *Socket) receiveEvent() (Event, error) {
 	msgType, msg, err := s.conn.ReadMessage()
 	if err != nil {
 		return Event{}, err
@@ -155,7 +155,7 @@ func (s *socket) receiveEvent() (Event, error) {
 		return Event{}, ErrInvalidMessageType
 	}
 
-	log.Tracef("Received '%s' from %s.", string(msg), s.id)
+	log.Tracef("Received '%s' from %s.", string(msg), s.Id)
 
 	var event Event
 	err = json.Unmarshal(msg, &event)
@@ -170,7 +170,7 @@ func (s *socket) receiveEvent() (Event, error) {
 	return event, nil
 }
 
-func (s *socket) sendGameInfo() error {
+func (s *Socket) sendGameInfo() error {
 	if s.player == nil || s.player.gameId == "" {
 		return errors.New("not in game")
 	}
@@ -184,17 +184,17 @@ func (s *socket) sendGameInfo() error {
 	}
 	s.server.gamesLock.RUnlock()
 
-	return s.sendEvent("server", EventGameInfo, EventGameInfoData{
+	return s.Send("server", EventGameInfo, EventGameInfoData{
 		Players: playersMap,
 	})
 }
 
-func (s *socket) send(message []byte) error {
-	log.Tracef("Sending '%s' to %s...", string(message), s.id)
+func (s *Socket) send(message []byte) error {
+	log.Tracef("Sending '%s' to %s...", string(message), s.Id)
 	return s.conn.WriteMessage(websocket.TextMessage, message)
 }
 
-func (s *socket) sendEvent(origin string, eventName EventName, eventData interface{}) error {
+func (s *Socket) Send(origin string, eventName EventName, eventData interface{}) error {
 	event := Event{
 		Name: eventName,
 	}
@@ -213,13 +213,13 @@ func (s *socket) sendEvent(origin string, eventName EventName, eventData interfa
 		return err
 	}
 
-	log.Tracef("Sending '%s' to %s...", string(jsonData), s.id)
+	log.Tracef("Sending '%s' to %s...", string(jsonData), s.Id)
 
 	return s.conn.WriteMessage(websocket.TextMessage, jsonData)
 }
 
-func (s *socket) sendError(reason string) error {
-	log.Errorf("Error with socket %s: %s", s.id, reason)
+func (s *Socket) sendError(reason string) error {
+	log.Errorf("Error with socket %s: %s", s.Id, reason)
 
 	event := Event{
 		Name: EventError,

@@ -14,7 +14,7 @@ type Player struct {
 
 	gameId      string
 	socketsLock sync.RWMutex
-	sockets     map[string]*socket
+	sockets     map[string]*Socket
 	server      *Server
 }
 
@@ -66,9 +66,9 @@ func (p *Player) handleEvent(event Event) error {
 	}
 }
 
-func (p *Player) addSocket(socket *socket) {
+func (p *Player) addSocket(socket *Socket) {
 	p.socketsLock.Lock()
-	p.sockets[socket.id] = socket
+	p.sockets[socket.Id] = socket
 	p.socketsLock.Unlock()
 }
 

@@ -34,7 +34,7 @@ func (g *Game) OnPlayerLeft(player *cg.Player) {
 	fmt.Println("Player left:", player.Username)
 }
 
-func (g *Game) OnPlayerConnected(player *cg.Player) {
+func (g *Game) OnPlayerSocketConnected(player *cg.Player, socket *cg.Socket) {
 	fmt.Println("Player connected a new socket:", player.Username)
 }
 
