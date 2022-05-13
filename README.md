@@ -22,8 +22,7 @@ import (
 )
 
 type Game struct {
-	id     string
-	server *cg.Server
+	game *cg.Game
 }
 
 func (g *Game) OnPlayerJoined(player *cg.Player) {
@@ -48,10 +47,9 @@ func main() {
 		Port: 8080,
 	})
 
-	server.Run(func(gameId string) cg.Game {
+	server.Run(func(game *cg.Game) cg.GameInterface {
 		return &Game{
-			id:     gameId,
-			server: server,
+			game: game,
 		}
 	})
 }

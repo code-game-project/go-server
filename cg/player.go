@@ -12,12 +12,13 @@ type Player struct {
 	Username string
 	Secret   string
 
-	gameId      string
+	game        *Game
 	socketsLock sync.RWMutex
 	sockets     map[string]*Socket
 	server      *Server
 }
 
+// Send sends the event to all sockets currently connected to the player.
 func (p *Player) Send(origin string, eventName EventName, eventData any) error {
 	event := Event{
 		Name: eventName,
@@ -52,15 +53,10 @@ func (p *Player) Send(origin string, eventName EventName, eventData any) error {
 func (p *Player) handleEvent(event Event) error {
 	switch event.Name {
 	case EventLeaveGame:
-		return p.server.leaveGame(p)
+		return p.game.leave(p)
 	default:
-		if p.gameId != "" {
-			p.server.gamesLock.RLock()
-			game, ok := p.server.games[p.gameId]
-			p.server.gamesLock.RUnlock()
-			if ok {
-				return game.game.OnPlayerEvent(p, event)
-			}
+		if p.game != nil {
+			return p.game.gameInterface.OnPlayerEvent(p, event)
 		}
 		return errors.New(fmt.Sprintf("unexpected event: %s", event.Name))
 	}

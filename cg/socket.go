@@ -22,6 +22,31 @@ var (
 	ErrDecodeFailed       = errors.New("failed to decode event")
 )
 
+// Send sends the event to the socket.
+func (s *Socket) Send(origin string, eventName EventName, eventData interface{}) error {
+	event := Event{
+		Name: eventName,
+	}
+	err := event.marshalData(eventData)
+	if err != nil {
+		return err
+	}
+
+	wrapper := eventWrapper{
+		Origin: origin,
+		Event:  event,
+	}
+
+	jsonData, err := json.Marshal(wrapper)
+	if err != nil {
+		return err
+	}
+
+	log.Tracef("Sending '%s' to %s...", string(jsonData), s.Id)
+
+	return s.conn.WriteMessage(websocket.TextMessage, jsonData)
+}
+
 func (s *Socket) handleConnection() {
 	for {
 		event, err := s.receiveEvent()
@@ -167,51 +192,18 @@ func (s *Socket) receiveEvent() (Event, error) {
 }
 
 func (s *Socket) sendGameInfo() error {
-	if s.player == nil || s.player.gameId == "" {
+	if s.player == nil || s.player.game == nil {
 		return errors.New("not in game")
 	}
-	s.server.gamesLock.RLock()
-	players := s.server.games[s.player.gameId].players
-
-	playersMap := make(map[string]string, len(players))
-
-	for id, player := range players {
-		playersMap[id] = player.Username
-	}
-	s.server.gamesLock.RUnlock()
 
 	return s.Send("server", EventGameInfo, EventGameInfoData{
-		Players: playersMap,
+		Players: s.player.game.playerUsernameMap(),
 	})
 }
 
 func (s *Socket) send(message []byte) error {
 	log.Tracef("Sending '%s' to %s...", string(message), s.Id)
 	return s.conn.WriteMessage(websocket.TextMessage, message)
-}
-
-func (s *Socket) Send(origin string, eventName EventName, eventData interface{}) error {
-	event := Event{
-		Name: eventName,
-	}
-	err := event.marshalData(eventData)
-	if err != nil {
-		return err
-	}
-
-	wrapper := eventWrapper{
-		Origin: origin,
-		Event:  event,
-	}
-
-	jsonData, err := json.Marshal(wrapper)
-	if err != nil {
-		return err
-	}
-
-	log.Tracef("Sending '%s' to %s...", string(jsonData), s.Id)
-
-	return s.conn.WriteMessage(websocket.TextMessage, jsonData)
 }
 
 func (s *Socket) sendError(reason string) error {
