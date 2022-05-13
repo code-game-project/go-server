@@ -136,10 +136,6 @@ func (s *Socket) connect(event Event) error {
 }
 
 func (s *Socket) disconnect() {
-	if s.player != nil && s.player.gameId != "" {
-		s.server.Emit(s.player.gameId, s.player.Id, EventDisconnected, EventDisconnectedData{})
-	}
-
 	err := s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "disconnect"), time.Now().Add(5*time.Second))
 	if err != nil {
 		s.conn.Close()

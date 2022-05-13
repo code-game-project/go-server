@@ -1,3 +1,6 @@
+/*
+CodeGame v0.2
+*/
 package cg
 
 // Create a new game.
@@ -55,12 +58,6 @@ const EventLeftGame EventName = "left_game"
 type EventLeftGameData struct {
 }
 
-// The `disconnected` event is sent to everyone in the game when someone disconnects from the server.
-const EventDisconnected EventName = "disconnected"
-
-type EventDisconnectedData struct {
-}
-
 // The `connect` event is used to associate a client with an existing player.
 // This event is used after making changes to ones program and reconnecting to the game or when adding another client like a viewer in the webbrowser.
 const EventConnect EventName = "connect"
@@ -74,7 +71,7 @@ type EventConnectData struct {
 	Secret string `json:"secret"`
 }
 
-// The `connected` event is sent to everyone in the game when a player connects a client to the server.
+// The `connected` event is sent to the socket that has connected.
 const EventConnected EventName = "connected"
 
 type EventConnectedData struct {
@@ -99,9 +96,9 @@ type EventErrorData struct {
 	Reason string `json:"reason"`
 }
 
-// Returns true if eventName is a standard event.
+// IsStandardEvent returns true if eventName is a standard event.
 func IsStandardEvent(eventName EventName) bool {
-	return eventName == EventCreateGame || eventName == EventCreatedGame || eventName == EventDisconnected ||
+	return eventName == EventCreateGame || eventName == EventCreatedGame ||
 		eventName == EventError || eventName == EventGameInfo || eventName == EventJoinGame || eventName == EventJoinedGame ||
 		eventName == EventLeaveGame || eventName == EventLeftGame || eventName == EventConnect || eventName == EventConnected ||
 		eventName == EventPlayerSecret

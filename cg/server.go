@@ -315,7 +315,7 @@ func (s *Server) connect(gameId, playerId, playerSecret string, socket *Socket) 
 
 	game.game.OnPlayerSocketConnected(player, socket)
 
-	return s.Emit(gameId, playerId, EventConnected, EventConnectedData{})
+	return socket.Send(playerId, EventConnected, EventConnectedData{})
 }
 
 func (s *Server) removeSocket(id string) {
