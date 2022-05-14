@@ -122,11 +122,13 @@ func (g *Game) join(username string, joiningSocket *Socket) error {
 }
 
 func (g *Game) leave(player *Player) error {
-	if g.OnPlayerJoined != nil {
-		g.OnPlayerLeft(player)
-	}
+	if g.running {
+		if g.OnPlayerJoined != nil {
+			g.OnPlayerLeft(player)
+		}
 
-	g.Send(player.Id, EventLeft, EventLeftData{})
+		g.Send(player.Id, EventLeft, EventLeftData{})
+	}
 
 	g.playersLock.Lock()
 	delete(g.players, player.Id)
