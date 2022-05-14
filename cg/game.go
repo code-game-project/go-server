@@ -116,7 +116,7 @@ func (g *Game) join(username string, joiningSocket *Socket) error {
 		g.OnPlayerJoined(player)
 	}
 
-	return g.Send(player.Id, EventJoinedGame, EventJoinedGameData{
+	return g.Send(player.Id, EventNewPlayer, EventNewPlayerData{
 		Username: player.Username,
 	})
 }
@@ -126,7 +126,7 @@ func (g *Game) leave(player *Player) error {
 		g.OnPlayerLeft(player)
 	}
 
-	g.Send(player.Id, EventLeftGame, EventLeftGameData{})
+	g.Send(player.Id, EventLeft, EventLeftData{})
 
 	g.playersLock.Lock()
 	delete(g.players, player.Id)

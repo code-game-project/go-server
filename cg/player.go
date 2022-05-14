@@ -52,7 +52,7 @@ func (p *Player) Send(origin string, eventName EventName, eventData any) error {
 
 func (p *Player) handleEvent(event Event) error {
 	switch event.Name {
-	case EventLeaveGame:
+	case EventLeave:
 		return p.game.leave(p)
 	default:
 		if p.game == nil {

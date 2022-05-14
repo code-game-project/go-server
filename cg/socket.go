@@ -63,9 +63,9 @@ func (s *Socket) handleConnection() {
 		}
 
 		switch event.Name {
-		case EventCreateGame:
+		case EventCreate:
 			err = s.createGame(event)
-		case EventJoinGame:
+		case EventJoin:
 			err = s.joinGame(event)
 		case EventConnect:
 			err = s.connect(event)
@@ -89,7 +89,7 @@ func (s *Socket) handleConnection() {
 }
 
 func (s *Socket) createGame(event Event) error {
-	var data EventCreateGameData
+	var data EventCreateData
 	err := event.UnmarshalData(&data)
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func (s *Socket) createGame(event Event) error {
 		return err
 	}
 
-	s.Send("server", EventCreatedGame, EventCreatedGameData{
+	s.Send("server", EventCreated, EventCreatedData{
 		GameId: gameId,
 	})
 
@@ -118,7 +118,7 @@ func (s *Socket) joinGame(event Event) error {
 		return errors.New("already joined")
 	}
 
-	var data EventJoinGameData
+	var data EventJoinData
 	err := event.UnmarshalData(&data)
 	if err != nil {
 		return err
@@ -129,7 +129,7 @@ func (s *Socket) joinGame(event Event) error {
 		return err
 	}
 
-	err = s.Send("server", EventPlayerSecret, EventPlayerSecretData{
+	err = s.Send("server", EventJoined, EventJoinedData{
 		Secret: s.player.Secret,
 	})
 	if err != nil {
@@ -196,7 +196,7 @@ func (s *Socket) sendGameInfo() error {
 		return errors.New("not in game")
 	}
 
-	return s.Send("server", EventGameInfo, EventGameInfoData{
+	return s.Send("server", EventInfo, EventInfoData{
 		Players: s.player.game.playerUsernameMap(),
 	})
 }
