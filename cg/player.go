@@ -55,11 +55,15 @@ func (p *Player) handleEvent(event Event) error {
 	case EventLeaveGame:
 		return p.game.leave(p)
 	default:
-		if p.game != nil {
-			return p.game.gameInterface.OnPlayerEvent(p, event)
+		if p.game == nil {
+			return errors.New(fmt.Sprintf("unexpected event: %s", event.Name))
 		}
-		return errors.New(fmt.Sprintf("unexpected event: %s", event.Name))
+		p.game.Events <- EventWrapper{
+			Player: p,
+			Event:  event,
+		}
 	}
+	return nil
 }
 
 func (p *Player) addSocket(socket *Socket) {

@@ -17,6 +17,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/code-game-project/go-server/cg"
 )
@@ -37,9 +38,32 @@ func (g *Game) OnPlayerSocketConnected(player *cg.Player, socket *cg.Socket) {
 	fmt.Println("Player connected a new socket:", player.Username)
 }
 
-func (g *Game) OnPlayerEvent(player *cg.Player, event cg.Event) error {
-	fmt.Println("Player event:", player.Username, event)
-	return nil
+func (g *Game) pollEvents() {
+	for {
+		select {
+		// Receive the next event from the events channel.
+		case event := <-g.game.Events:
+			g.handleEvent(event.Event, event.Player)
+		default:
+			return
+		}
+	}
+}
+
+func (g *Game) handleEvent(event cg.Event, player *cg.Player) {
+	fmt.Printf("Received '%s' event from '%s'.\n", event.Name, player.Username)
+}
+
+func (g *Game) Run() {
+	// Loop until the game is closed.
+	for g.game.Running() {
+		g.pollEvents()
+
+		// game logic
+
+		// 60 FPS
+		time.Sleep(16 * time.Millisecond)
+	}
 }
 
 func main() {
@@ -47,10 +71,18 @@ func main() {
 		Port: 8080,
 	})
 
-	server.Run(func(game *cg.Game) cg.GameInterface {
-		return &Game{
-			game: game,
+	server.Run(func(cgGame *cg.Game) {
+		game := Game{
+			game: cgGame,
 		}
+
+		// Register callbacks.
+		cgGame.OnPlayerJoined = game.OnPlayerJoined
+		cgGame.OnPlayerLeft = game.OnPlayerLeft
+		cgGame.OnPlayerSocketConnected = game.OnPlayerSocketConnected
+
+		// Run the game loop.
+		game.Run()
 	})
 }
 ```

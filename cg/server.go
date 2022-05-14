@@ -27,7 +27,7 @@ type Server struct {
 	upgrader websocket.Upgrader
 	config   ServerConfig
 
-	newGameFunc NewGameFunc
+	runGameFunc func(game *Game)
 }
 
 type ServerConfig struct {
@@ -42,8 +42,6 @@ type ServerConfig struct {
 	// The maximum number of games.
 	MaxGames int
 }
-
-type NewGameFunc func(game *Game) GameInterface
 
 func NewServer(config ServerConfig) *Server {
 	server := &Server{
@@ -70,13 +68,13 @@ func NewServer(config ServerConfig) *Server {
 }
 
 // Run starts the webserver and listens for new connections.
-func (s *Server) Run(newGame NewGameFunc) {
+func (s *Server) Run(runGameFunc func(game *Game)) {
 	r := mux.NewRouter()
 	r.HandleFunc("/ws", s.wsEndpoint)
 	r.HandleFunc("/events", s.eventsEndpoint)
 	http.Handle("/", r)
 
-	s.newGameFunc = newGame
+	s.runGameFunc = runGameFunc
 
 	log.Infof("Listening on port %d...", s.config.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), nil))
@@ -136,16 +134,14 @@ func (s *Server) createGame(public bool) (string, error) {
 
 	id := uuid.NewString()
 
-	game := &Game{
-		Id:      id,
-		public:  public,
-		players: make(map[string]*Player),
-		server:  s,
-	}
-
-	game.gameInterface = s.newGameFunc(game)
+	game := s.newGame(id, public)
 
 	s.games[id] = game
+
+	go func() {
+		s.runGameFunc(game)
+		game.close()
+	}()
 
 	return id, nil
 }
@@ -191,7 +187,9 @@ func (s *Server) connect(gameId, playerId, playerSecret string, socket *Socket) 
 	socket.player = player
 	player.addSocket(socket)
 
-	game.gameInterface.OnPlayerSocketConnected(player, socket)
+	if game.OnPlayerSocketConnected != nil {
+		game.OnPlayerSocketConnected(player, socket)
+	}
 
 	return socket.Send(playerId, EventConnected, EventConnectedData{})
 }

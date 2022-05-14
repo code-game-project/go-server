@@ -7,22 +7,39 @@ import (
 	"github.com/google/uuid"
 )
 
-type GameInterface interface {
-	OnPlayerJoined(player *Player)
-	OnPlayerLeft(player *Player)
-	OnPlayerSocketConnected(player *Player, socket *Socket)
-	OnPlayerEvent(player *Player, event Event) error
-}
-
 type Game struct {
-	Id            string
-	gameInterface GameInterface
-	public        bool
+	Id string
+
+	OnPlayerJoined          func(player *Player)
+	OnPlayerLeft            func(player *Player)
+	OnPlayerSocketConnected func(player *Player, socket *Socket)
+
+	Events chan EventWrapper
+
+	public bool
 
 	playersLock sync.RWMutex
 	players     map[string]*Player
 
 	server *Server
+
+	running bool
+}
+
+type EventWrapper struct {
+	Player *Player
+	Event  Event
+}
+
+func (s *Server) newGame(id string, public bool) *Game {
+	return &Game{
+		Id:      id,
+		Events:  make(chan EventWrapper, 100),
+		public:  public,
+		players: make(map[string]*Player),
+		server:  s,
+		running: true,
+	}
 }
 
 // Send sends the event to all players currently in the game.
@@ -47,18 +64,28 @@ func (g *Game) GetPlayer(playerId string) (*Player, bool) {
 	return player, ok
 }
 
-// Close removes the game from the server disconnects all players.
-func (g *Game) Close() error {
+// Returns true if the game has not already been closed.
+func (g *Game) Running() bool {
+	return g.running
+}
+
+func (g *Game) close() error {
+	if !g.running {
+		return nil
+	}
+
+	g.running = false
+
 	g.server.removeGame(g)
 
-	g.playersLock.RLock()
-	defer g.playersLock.RUnlock()
 	for _, p := range g.players {
 		err := g.leave(p)
 		if err != nil {
 			return err
 		}
 	}
+
+	close(g.Events)
 
 	log.Tracef("Removed game %s.", g.Id)
 
@@ -85,7 +112,9 @@ func (g *Game) join(username string, joiningSocket *Socket) error {
 
 	log.Tracef("Player %s joined game %s with username '%s'.", player.Id, player.game.Id, player.Username)
 
-	g.gameInterface.OnPlayerJoined(player)
+	if g.OnPlayerJoined != nil {
+		g.OnPlayerJoined(player)
+	}
 
 	return g.Send(player.Id, EventJoinedGame, EventJoinedGameData{
 		Username: player.Username,
@@ -93,7 +122,10 @@ func (g *Game) join(username string, joiningSocket *Socket) error {
 }
 
 func (g *Game) leave(player *Player) error {
-	g.gameInterface.OnPlayerLeft(player)
+	if g.OnPlayerJoined != nil {
+		g.OnPlayerLeft(player)
+	}
+
 	g.Send(player.Id, EventLeftGame, EventLeftGameData{})
 
 	g.playersLock.Lock()
