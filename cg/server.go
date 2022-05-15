@@ -140,7 +140,7 @@ func (s *Server) createGame(public bool) (string, error) {
 
 	go func() {
 		s.runGameFunc(game)
-		game.close()
+		game.Close()
 	}()
 
 	return id, nil

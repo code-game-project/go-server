@@ -69,7 +69,8 @@ func (g *Game) Running() bool {
 	return g.running
 }
 
-func (g *Game) close() error {
+// Stop the game, disconnect all players and remove it from the server.
+func (g *Game) Close() error {
 	if !g.running {
 		return nil
 	}
