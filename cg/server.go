@@ -43,6 +43,10 @@ type ServerConfig struct {
 	MaxGames int
 }
 
+type EventSender interface {
+	Send(origin string, event EventName, eventData any) error
+}
+
 func NewServer(config ServerConfig) *Server {
 	server := &Server{
 		sockets: make(map[string]*Socket),
