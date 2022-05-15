@@ -23,7 +23,7 @@ var (
 )
 
 // Send sends the event to the socket.
-func (s *Socket) Send(origin string, eventName EventName, eventData interface{}) error {
+func (s *Socket) Send(origin string, eventName EventName, eventData any) error {
 	event := Event{
 		Name: eventName,
 	}

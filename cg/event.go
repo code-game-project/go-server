@@ -17,12 +17,12 @@ type Event struct {
 }
 
 // UnmarshalData decodes the event data into the struct pointed to by targetObjPtr.
-func (e *Event) UnmarshalData(targetObjPtr interface{}) error {
+func (e *Event) UnmarshalData(targetObjPtr any) error {
 	return json.Unmarshal(e.Data, targetObjPtr)
 }
 
 // marshalData encodes obj into the Data field of the event.
-func (e *Event) marshalData(obj interface{}) error {
+func (e *Event) marshalData(obj any) error {
 	data, err := json.Marshal(obj)
 	if err != nil {
 		return err
