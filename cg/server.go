@@ -74,8 +74,8 @@ func NewServer(config ServerConfig) *Server {
 // Run starts the webserver and listens for new connections.
 func (s *Server) Run(runGameFunc func(game *Game)) {
 	r := mux.NewRouter()
-	r.HandleFunc("/ws", s.wsEndpoint)
-	r.HandleFunc("/events", s.eventsEndpoint)
+	r.HandleFunc("/ws", s.wsEndpoint).Methods("GET")
+	r.HandleFunc("/events", s.eventsEndpoint).Methods("GET")
 	http.Handle("/", r)
 
 	s.runGameFunc = runGameFunc
