@@ -63,8 +63,6 @@ func (s *Socket) handleConnection() {
 		}
 
 		switch event.Name {
-		case EventCreate:
-			err = s.createGame(event)
 		case EventJoin:
 			err = s.joinGame(event)
 		case EventConnect:
@@ -86,31 +84,6 @@ func (s *Socket) handleConnection() {
 	} else {
 		s.server.removeSocket(s.Id)
 	}
-}
-
-func (s *Socket) createGame(event Event) error {
-	var data EventCreateData
-	err := event.UnmarshalData(&data)
-	if err != nil {
-		return err
-	}
-
-	gameId, err := s.server.createGame(data.Public)
-	if err != nil {
-		return err
-	}
-
-	s.Send("server", EventCreated, EventCreatedData{
-		GameId: gameId,
-	})
-
-	if data.Public {
-		log.Tracef("Socket %s created a new public game: %s", s.Id, gameId)
-	} else {
-		log.Tracef("Socket %s created a new private game: %s", s.Id, gameId)
-	}
-
-	return nil
 }
 
 func (s *Socket) joinGame(event Event) error {
