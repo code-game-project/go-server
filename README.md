@@ -42,7 +42,10 @@ func (g *Game) pollEvents() {
 	for {
 		select {
 		// Receive the next event from the events channel.
-		case event := <-g.game.Events:
+		case event, ok := <-g.game.Events:
+			if !ok {
+				return
+			}
 			g.handleEvent(event.Event, event.Player)
 		default:
 			return
