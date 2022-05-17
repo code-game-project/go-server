@@ -15,7 +15,7 @@ type Game struct {
 	OnPlayerLeft            func(player *Player)
 	OnPlayerSocketConnected func(player *Player, socket *Socket)
 
-	Events chan EventWrapper
+	eventsChan chan EventWrapper
 
 	public bool
 
@@ -39,7 +39,7 @@ type EventWrapper struct {
 func (s *Server) newGame(id string, public bool) *Game {
 	return &Game{
 		Id:             id,
-		Events:         make(chan EventWrapper, 100),
+		eventsChan:     make(chan EventWrapper, 10),
 		public:         public,
 		players:        make(map[string]*Player),
 		server:         s,
@@ -70,6 +70,20 @@ func (g *Game) GetPlayer(playerId string) (*Player, bool) {
 	return player, ok
 }
 
+// NextEvent returns the next event in the queue or ok = false if there is none.
+func (g *Game) NextEvent() (EventWrapper, bool) {
+	select {
+	case wrapper, ok := <-g.eventsChan:
+		if ok {
+			return wrapper, true
+		} else {
+			return EventWrapper{}, false
+		}
+	default:
+		return EventWrapper{}, false
+	}
+}
+
 // Returns true if the game has not already been closed.
 func (g *Game) Running() bool {
 	return g.running
@@ -92,7 +106,7 @@ func (g *Game) Close() error {
 		}
 	}
 
-	close(g.Events)
+	close(g.eventsChan)
 
 	log.Tracef("Removed game %s.", g.Id)
 

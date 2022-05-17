@@ -40,16 +40,11 @@ func (g *Game) OnPlayerSocketConnected(player *cg.Player, socket *cg.Socket) {
 
 func (g *Game) pollEvents() {
 	for {
-		select {
-		// Receive the next event from the events channel.
-		case event, ok := <-g.game.Events:
-			if !ok {
-				return
-			}
-			g.handleEvent(event.Event, event.Player)
-		default:
+		event, ok := g.game.NextEvent()
+		if !ok {
 			return
 		}
+		g.handleEvent(event.Event, event.Player)
 	}
 }
 

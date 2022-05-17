@@ -59,7 +59,7 @@ func (p *Player) handleEvent(event Event) error {
 		if p.game == nil {
 			return errors.New(fmt.Sprintf("unexpected event: %s", event.Name))
 		}
-		p.game.Events <- EventWrapper{
+		p.game.eventsChan <- EventWrapper{
 			Player: p,
 			Event:  event,
 		}
