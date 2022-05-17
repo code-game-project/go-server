@@ -132,6 +132,8 @@ func (s *Server) createGame(public bool) (string, error) {
 		game.Close()
 	}()
 
+	log.Tracef("Created game %s.", id)
+
 	return id, nil
 }
 
