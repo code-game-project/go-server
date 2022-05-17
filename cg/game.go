@@ -114,6 +114,22 @@ func (g *Game) Close() error {
 }
 
 func (g *Game) join(username string, joiningSocket *Socket) error {
+	if g.server.config.KickInactivePlayerDelay > 0 {
+		g.playersLock.RLock()
+		for _, p := range g.players {
+			p.socketsLock.RLock()
+			if p.socketCount == 0 && time.Now().Sub(p.lastConnection) >= g.server.config.KickInactivePlayerDelay {
+				g.playersLock.RUnlock()
+				p.socketsLock.RUnlock()
+				g.leave(p)
+				g.playersLock.RLock()
+			} else {
+				p.socketsLock.RUnlock()
+			}
+		}
+		g.playersLock.RUnlock()
+	}
+
 	playerId := uuid.NewString()
 	player := &Player{
 		Id:       playerId,

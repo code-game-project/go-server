@@ -17,6 +17,10 @@ type Player struct {
 	socketsLock sync.RWMutex
 	sockets     map[string]*Socket
 	server      *Server
+
+	// protected by socketsLock
+	socketCount    int
+	lastConnection time.Time
 }
 
 // Send sends the event to all sockets currently connected to the player.
@@ -70,6 +74,7 @@ func (p *Player) handleEvent(event Event) error {
 func (p *Player) addSocket(socket *Socket) {
 	p.socketsLock.Lock()
 	p.sockets[socket.Id] = socket
+	p.socketCount++
 	p.socketsLock.Unlock()
 
 	if p.game != nil {
@@ -86,6 +91,8 @@ func (p *Player) disconnectSocket(id string) {
 	if ok {
 		socket.disconnect()
 		delete(p.sockets, id)
+		p.socketCount--
+		p.lastConnection = time.Now()
 		if p.game != nil {
 			p.game.socketCountLock.Lock()
 			p.game.socketCount--

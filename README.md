@@ -67,7 +67,8 @@ func (g *Game) Run() {
 func main() {
 	server := cg.NewServer("my_game", cg.ServerConfig{
 		Port: 8080,
-		DeleteEmptyGameDuration: 15 * time.Minute,
+		DeleteInactiveGameDelay: 15 * time.Minute,
+		KickInactivePlayerDelay: 15 * time.Minute,
 		CGEFilepath:   "my_game.cge",
 		DisplayName:   "My Game",
 		Version:       "1.2.3",

@@ -41,8 +41,10 @@ type ServerConfig struct {
 	MaxPlayersPerGame int
 	// The maximum number of games (0 => unlimited).
 	MaxGames int
-	// The time after which an empty game will be deleted. (0 => never)
-	DeleteEmptyGameDuration time.Duration
+	// The time after which game with no connected sockets will be deleted. (0 => never)
+	DeleteInactiveGameDelay time.Duration
+	// The time after which a player without sockets will be kicked. (0 => never)
+	KickInactivePlayerDelay time.Duration
 	// The name of the game in snake_case.
 	Name string
 	// The name of the game that will be displayed to the user.
@@ -105,15 +107,17 @@ func (s *Server) createGame(public bool) (string, error) {
 	s.gamesLock.Lock()
 	defer s.gamesLock.Unlock()
 
-	if s.config.DeleteEmptyGameDuration > 0 {
+	if s.config.DeleteInactiveGameDelay > 0 {
 		for _, g := range s.games {
 			g.socketCountLock.RLock()
-			if g.socketCount == 0 && time.Now().Sub(g.lastConnection) >= s.config.DeleteEmptyGameDuration {
+			if g.socketCount == 0 && time.Now().Sub(g.lastConnection) >= s.config.DeleteInactiveGameDelay {
 				s.gamesLock.Unlock()
+				g.socketCountLock.RUnlock()
 				g.Close()
 				s.gamesLock.Lock()
+			} else {
+				g.socketCountLock.RUnlock()
 			}
-			g.socketCountLock.RUnlock()
 		}
 	}
 
