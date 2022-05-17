@@ -75,7 +75,6 @@ func (p *Player) addSocket(socket *Socket) {
 	if p.game != nil {
 		p.game.socketCountLock.Lock()
 		p.game.socketCount++
-		fmt.Println("Socket count:", p.game.socketCount)
 		p.game.socketCountLock.Unlock()
 	}
 }
@@ -90,7 +89,6 @@ func (p *Player) disconnectSocket(id string) {
 		if p.game != nil {
 			p.game.socketCountLock.Lock()
 			p.game.socketCount--
-			fmt.Println("Socket count:", p.game.socketCount)
 			if p.game.socketCount == 0 {
 				p.game.lastConnection = time.Now()
 			}

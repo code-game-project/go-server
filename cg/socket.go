@@ -102,7 +102,7 @@ func (s *Socket) joinGame(event Event) error {
 		return err
 	}
 
-	err = s.Send("server", EventJoined, EventJoinedData{
+	err = s.Send(s.player.Id, EventJoined, EventJoinedData{
 		Secret: s.player.Secret,
 	})
 	if err != nil {

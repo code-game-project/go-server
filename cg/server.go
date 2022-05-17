@@ -155,7 +155,7 @@ func (s *Server) joinGame(gameId, username string, joiningSocket *Socket) error 
 }
 
 func (s *Server) connect(gameId, playerId, playerSecret string, socket *Socket) error {
-	game, ok := s.getGame(playerId)
+	game, ok := s.getGame(gameId)
 	if !ok {
 		return errors.New("game does not exist")
 	}
