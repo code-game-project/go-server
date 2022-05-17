@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 type Player struct {
@@ -70,6 +71,13 @@ func (p *Player) addSocket(socket *Socket) {
 	p.socketsLock.Lock()
 	p.sockets[socket.Id] = socket
 	p.socketsLock.Unlock()
+
+	if p.game != nil {
+		p.game.socketCountLock.Lock()
+		p.game.socketCount++
+		fmt.Println("Socket count:", p.game.socketCount)
+		p.game.socketCountLock.Unlock()
+	}
 }
 
 func (p *Player) disconnectSocket(id string) {
@@ -79,6 +87,15 @@ func (p *Player) disconnectSocket(id string) {
 	if ok {
 		socket.disconnect()
 		delete(p.sockets, id)
+		if p.game != nil {
+			p.game.socketCountLock.Lock()
+			p.game.socketCount--
+			fmt.Println("Socket count:", p.game.socketCount)
+			if p.game.socketCount == 0 {
+				p.game.lastConnection = time.Now()
+			}
+			p.game.socketCountLock.Unlock()
+		}
 	}
 
 	p.socketsLock.Unlock()

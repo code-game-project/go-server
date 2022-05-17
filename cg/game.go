@@ -2,6 +2,7 @@ package cg
 
 import (
 	"sync"
+	"time"
 
 	"github.com/Bananenpro/log"
 	"github.com/google/uuid"
@@ -24,6 +25,10 @@ type Game struct {
 	server *Server
 
 	running bool
+
+	socketCountLock sync.RWMutex
+	socketCount     int
+	lastConnection  time.Time
 }
 
 type EventWrapper struct {
@@ -33,12 +38,13 @@ type EventWrapper struct {
 
 func (s *Server) newGame(id string, public bool) *Game {
 	return &Game{
-		Id:      id,
-		Events:  make(chan EventWrapper, 100),
-		public:  public,
-		players: make(map[string]*Player),
-		server:  s,
-		running: true,
+		Id:             id,
+		Events:         make(chan EventWrapper, 100),
+		public:         public,
+		players:        make(map[string]*Player),
+		server:         s,
+		running:        true,
+		lastConnection: time.Now(),
 	}
 }
 
@@ -82,7 +88,7 @@ func (g *Game) Close() error {
 	for _, p := range g.players {
 		err := g.leave(p)
 		if err != nil {
-			return err
+			log.Errorf("Couldn't disconnect player '%s' from game '%s': %s", p.Id, g.Id, err)
 		}
 	}
 
@@ -108,7 +114,7 @@ func (g *Game) join(username string, joiningSocket *Socket) error {
 
 	g.playersLock.Lock()
 	g.players[playerId] = player
-	g.players[playerId].sockets[joiningSocket.Id] = joiningSocket
+	g.players[playerId].addSocket(joiningSocket)
 	g.playersLock.Unlock()
 
 	log.Tracef("Player %s joined game %s with username '%s'.", player.Id, player.game.Id, player.Username)

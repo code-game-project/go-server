@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/Bananenpro/log"
 	"github.com/google/uuid"
@@ -30,16 +31,18 @@ type Server struct {
 }
 
 type ServerConfig struct {
-	// The port to listen on for new websocket connections.
+	// The port to listen on for new websocket connections. (default: 80)
 	Port int
-	// The path to the CGE file for the current game (0 -> unlimited).
+	// The path to the CGE file for the current game.
 	CGEFilepath string
-	// The maximum number of allowed sockets per player (0 -> unlimited).
+	// The maximum number of allowed sockets per player (0 => unlimited).
 	MaxSocketsPerPlayer int
-	// The maximum number of allowed players per game (0 -> unlimited).
+	// The maximum number of allowed players per game (0 => unlimited).
 	MaxPlayersPerGame int
-	// The maximum number of games.
+	// The maximum number of games (0 => unlimited).
 	MaxGames int
+	// The time after which an empty game will be deleted. (0 => never)
+	DeleteEmptyGameDuration time.Duration
 	// The name of the game in snake_case.
 	Name string
 	// The name of the game that will be displayed to the user.
@@ -101,6 +104,18 @@ func (s *Server) Run(runGameFunc func(game *Game)) {
 func (s *Server) createGame(public bool) (string, error) {
 	s.gamesLock.Lock()
 	defer s.gamesLock.Unlock()
+
+	if s.config.DeleteEmptyGameDuration > 0 {
+		for _, g := range s.games {
+			g.socketCountLock.RLock()
+			if g.socketCount == 0 && time.Now().Sub(g.lastConnection) >= s.config.DeleteEmptyGameDuration {
+				s.gamesLock.Unlock()
+				g.Close()
+				s.gamesLock.Lock()
+			}
+			g.socketCountLock.RUnlock()
+		}
+	}
 
 	if s.config.MaxGames > 0 && len(s.games) >= s.config.MaxGames {
 		return "", errors.New("max game count reached")
