@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"os"
 	"sync"
 
 	"github.com/Bananenpro/log"
@@ -41,13 +40,25 @@ type ServerConfig struct {
 	MaxPlayersPerGame int
 	// The maximum number of games.
 	MaxGames int
+	// The name of the game in snake_case.
+	Name string
+	// The name of the game that will be displayed to the user.
+	DisplayName string
+	// The version of the game.
+	Version string
+	// The description of the game.
+	Description string
+	// The URL to the code repository of the game.
+	RepositoryURL string
 }
 
 type EventSender interface {
 	Send(origin string, event EventName, eventData any) error
 }
 
-func NewServer(config ServerConfig) *Server {
+func NewServer(name string, config ServerConfig) *Server {
+	config.Name = name
+
 	server := &Server{
 		sockets: make(map[string]*Socket),
 		players: make(map[string]*Player),
@@ -75,57 +86,16 @@ func NewServer(config ServerConfig) *Server {
 func (s *Server) Run(runGameFunc func(game *Game)) {
 	r := mux.NewRouter()
 	r.HandleFunc("/ws", s.wsEndpoint).Methods("GET")
+	r.HandleFunc("/info", s.infoEndpoint).Methods("GET")
 	r.HandleFunc("/events", s.eventsEndpoint).Methods("GET")
+	r.HandleFunc("/games", s.gamesEndpoint).Methods("GET")
+	r.HandleFunc("/games", s.createGameEndpoint).Methods("POST")
 	http.Handle("/", r)
 
 	s.runGameFunc = runGameFunc
 
 	log.Infof("Listening on port %d...", s.config.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), nil))
-}
-
-func (s *Server) wsEndpoint(w http.ResponseWriter, r *http.Request) {
-	conn, err := s.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Errorf("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
-		return
-	}
-
-	socket := &Socket{
-		Id:     uuid.NewString(),
-		server: s,
-		conn:   conn,
-	}
-
-	s.addSocket(socket)
-
-	go socket.handleConnection()
-
-	log.Tracef("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
-}
-
-func (s *Server) eventsEndpoint(w http.ResponseWriter, r *http.Request) {
-	if s.config.CGEFilepath == "" {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	data, err := os.ReadFile(s.config.CGEFilepath)
-	if err != nil {
-		log.Errorf("Couldn't read '%s': %s", s.config.CGEFilepath, err)
-		if os.IsNotExist(err) {
-			w.WriteHeader(http.StatusNotFound)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain")
-	_, err = w.Write(data)
-	if err != nil {
-		log.Errorf("Failed to send CGE file content: %s", err)
-	}
 }
 
 func (s *Server) createGame(public bool) (string, error) {

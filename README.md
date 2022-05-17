@@ -67,8 +67,13 @@ func (g *Game) Run() {
 }
 
 func main() {
-	server := cg.NewServer(cg.ServerConfig{
+	server := cg.NewServer("my_game", cg.ServerConfig{
 		Port: 8080,
+		CGEFilepath:   "my_game.cge",
+		DisplayName:   "My Game",
+		Version:       "1.2.3",
+		Description:   "This is my game.",
+		RepositoryURL: "https://example.com",
 	})
 
 	server.Run(func(cgGame *cg.Game) {
