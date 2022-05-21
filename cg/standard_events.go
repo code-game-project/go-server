@@ -1,6 +1,3 @@
-/*
-Standard v0.4
-*/
 package cg
 
 // Join an existing game by ID.
@@ -60,6 +57,8 @@ type EventConnectData struct {
 const EventConnected EventName = "cg_connected"
 
 type EventConnectedData struct {
+	// The username of the player.
+	Username string `json:"username"`
 }
 
 // The `cg_info` event is sent to every player that joins or connects to a game and catches them up
@@ -78,6 +77,13 @@ type EventInfoData struct {
 const EventError EventName = "cg_error"
 
 type EventErrorData struct {
-	// The reason the error occured.
-	Reason string `json:"reason"`
+	// The error message.
+	Message string `json:"message"`
+}
+
+// IsStandardEvent returns true if eventName is a standard event.
+func IsStandardEvent(eventName EventName) bool {
+	return eventName == EventJoin || eventName == EventJoined || eventName == EventNewPlayer ||
+		eventName == EventLeave || eventName == EventLeft || eventName == EventConnect ||
+		eventName == EventConnected || eventName == EventInfo || eventName == EventError
 }

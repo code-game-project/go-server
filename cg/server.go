@@ -186,7 +186,9 @@ func (s *Server) connect(gameId, playerId, playerSecret string, socket *Socket) 
 		game.OnPlayerSocketConnected(player, socket)
 	}
 
-	return socket.Send(playerId, EventConnected, EventConnectedData{})
+	return socket.Send(playerId, EventConnected, EventConnectedData{
+		Username: player.Username,
+	})
 }
 
 func (s *Server) addSocket(socket *Socket) {

@@ -84,6 +84,12 @@ func (g *Game) NextEvent() (EventWrapper, bool) {
 	}
 }
 
+// WaitForNextEvent waits for and then returns the next event in the queue or ok = false if the game has been closed.
+func (g *Game) WaitForNextEvent() (EventWrapper, bool) {
+	wrapper, ok := <-g.eventsChan
+	return wrapper, ok
+}
+
 // Returns true if the game has not already been closed.
 func (g *Game) Running() bool {
 	return g.running

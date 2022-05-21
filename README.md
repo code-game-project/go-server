@@ -1,5 +1,6 @@
 # Go-Server
-![CodeGame Version](https://img.shields.io/badge/CodeGame-v0.4-orange)
+![CodeGame Protocol Version](https://img.shields.io/badge/Protocol-v0.5-orange)
+![CodeGame GameServer Version](https://img.shields.io/badge/GameServer-v0.1-yellow)
 ![Go version](https://img.shields.io/github/go-mod/go-version/code-game-project/go-server)
 
 This is the Go server library for [CodeGame](https://github.com/code-game-project).

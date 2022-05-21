@@ -179,14 +179,14 @@ func (s *Socket) send(message []byte) error {
 	return s.conn.WriteMessage(websocket.TextMessage, message)
 }
 
-func (s *Socket) sendError(reason string) error {
-	log.Errorf("Error with socket %s: %s", s.Id, reason)
+func (s *Socket) sendError(message string) error {
+	log.Errorf("Error with socket %s: %s", s.Id, message)
 
 	event := Event{
 		Name: EventError,
 	}
 	err := event.marshalData(EventErrorData{
-		Reason: reason,
+		Message: message,
 	})
 	if err != nil {
 		return err
