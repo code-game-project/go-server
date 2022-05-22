@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -35,6 +36,8 @@ type ServerConfig struct {
 	Port int
 	// The path to the CGE file for the current game.
 	CGEFilepath string
+	// All files in this direcory will be served.
+	WebRoot string
 	// The maximum number of allowed sockets per player (0 => unlimited).
 	MaxSocketsPerPlayer int
 	// The maximum number of allowed players per game (0 => unlimited).
@@ -84,6 +87,17 @@ func NewServer(name string, config ServerConfig) *Server {
 		log.Warn("No CGE file location specified!")
 	}
 
+	if server.config.WebRoot != "" {
+		stat, err := os.Stat(server.config.WebRoot)
+		if err != nil {
+			log.Warnf("Web root '%s' does not exist.", server.config.WebRoot)
+			server.config.WebRoot = ""
+		} else if !stat.IsDir() {
+			log.Warnf("Web root '%s' is not a directory.", server.config.WebRoot)
+			server.config.WebRoot = ""
+		}
+	}
+
 	return server
 }
 
@@ -95,12 +109,14 @@ func (s *Server) Run(runGameFunc func(game *Game)) {
 	r.HandleFunc("/events", s.eventsEndpoint).Methods("GET")
 	r.HandleFunc("/games", s.gamesEndpoint).Methods("GET")
 	r.HandleFunc("/games", s.createGameEndpoint).Methods("POST")
-	http.Handle("/", r)
+	if s.config.WebRoot != "" {
+		r.PathPrefix("/").Handler(http.FileServer(http.Dir(s.config.WebRoot)))
+	}
 
 	s.runGameFunc = runGameFunc
 
 	log.Infof("Listening on port %d...", s.config.Port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), r))
 }
 
 func (s *Server) createGame(public bool) (string, error) {

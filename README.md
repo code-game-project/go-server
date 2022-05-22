@@ -67,14 +67,15 @@ func (g *Game) Run() {
 
 func main() {
 	server := cg.NewServer("my_game", cg.ServerConfig{
-		Port: 8080,
+		Port:                    8080,
 		DeleteInactiveGameDelay: 15 * time.Minute,
 		KickInactivePlayerDelay: 15 * time.Minute,
-		CGEFilepath:   "my_game.cge",
-		DisplayName:   "My Game",
-		Version:       "1.2.3",
-		Description:   "This is my game.",
-		RepositoryURL: "https://example.com",
+		CGEFilepath:             "my_game.cge",
+		WebRoot:                 "web",
+		DisplayName:             "My Game",
+		Version:                 "1.2.3",
+		Description:             "This is my game.",
+		RepositoryURL:           "https://example.com",
 	})
 
 	server.Run(func(cgGame *cg.Game) {
