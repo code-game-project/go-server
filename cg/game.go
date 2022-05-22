@@ -1,6 +1,8 @@
 package cg
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -22,6 +24,9 @@ type Game struct {
 	playersLock sync.RWMutex
 	players     map[string]*Player
 
+	spectatorsLock sync.RWMutex
+	spectators     map[string]*Socket
+
 	server *Server
 
 	running bool
@@ -42,6 +47,7 @@ func (s *Server) newGame(id string, public bool) *Game {
 		eventsChan:     make(chan EventWrapper, 10),
 		public:         public,
 		players:        make(map[string]*Player),
+		spectators:     make(map[string]*Socket),
 		server:         s,
 		running:        true,
 		lastConnection: time.Now(),
@@ -54,6 +60,17 @@ func (g *Game) Send(origin string, eventName EventName, eventData any) error {
 	defer g.playersLock.RUnlock()
 	for _, p := range g.players {
 		err := p.Send(origin, eventName, eventData)
+		if err != nil {
+			return err
+		}
+	}
+
+	g.spectatorsLock.RLock()
+	defer g.spectatorsLock.RUnlock()
+	fmt.Println(len(g.spectators))
+	for _, s := range g.spectators {
+		fmt.Println(s.Id)
+		err := s.Send(origin, eventName, eventData)
 		if err != nil {
 			return err
 		}
@@ -194,4 +211,22 @@ func (g *Game) playerUsernameMap() map[string]string {
 	}
 	g.playersLock.RUnlock()
 	return usernameMap
+}
+
+func (g *Game) addSpectator(socket *Socket) error {
+	g.spectatorsLock.Lock()
+	defer g.spectatorsLock.Unlock()
+
+	if g.server.config.MaxSpectatorsPerGame > 0 && len(g.spectators) >= g.server.config.MaxSpectatorsPerGame {
+		return errors.New("max spectator count reached")
+	}
+
+	g.spectators[socket.Id] = socket
+	return nil
+}
+
+func (g *Game) removeSpectator(id string) {
+	g.spectatorsLock.Lock()
+	delete(g.spectators, id)
+	g.spectatorsLock.Unlock()
 }

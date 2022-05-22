@@ -42,6 +42,8 @@ type ServerConfig struct {
 	MaxSocketsPerPlayer int
 	// The maximum number of allowed players per game (0 => unlimited).
 	MaxPlayersPerGame int
+	// The maximum number of allowed spectators per game (0 => unlimited).
+	MaxSpectatorsPerGame int
 	// The maximum number of games (0 => unlimited).
 	MaxGames int
 	// The time after which game with no connected sockets will be deleted. (0 => never)

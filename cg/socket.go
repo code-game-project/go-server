@@ -10,10 +10,11 @@ import (
 )
 
 type Socket struct {
-	Id     string
-	server *Server
-	player *Player
-	conn   *websocket.Conn
+	Id           string
+	server       *Server
+	player       *Player
+	spectateGame *Game
+	conn         *websocket.Conn
 }
 
 var (
@@ -67,11 +68,14 @@ func (s *Socket) handleConnection() {
 			err = s.joinGame(event)
 		case EventConnect:
 			err = s.connect(event)
+		case EventSpectate:
+			err = s.spectate(event)
 		default:
 			if s.player != nil {
 				err = s.player.handleEvent(event)
 			} else {
-
+				log.Warnf("Socket %s sent an unexpected event: %s", s.Id, event.Name)
+				err = errors.New("unexpected event")
 			}
 		}
 
@@ -82,6 +86,9 @@ func (s *Socket) handleConnection() {
 	if s.player != nil {
 		s.player.disconnectSocket(s.Id)
 	} else {
+		if s.spectateGame != nil {
+			s.spectateGame.removeSpectator(s.Id)
+		}
 		s.server.removeSocket(s.Id)
 	}
 }
@@ -89,6 +96,9 @@ func (s *Socket) handleConnection() {
 func (s *Socket) joinGame(event Event) error {
 	if s.player != nil {
 		return errors.New("already joined")
+	}
+	if s.spectateGame != nil {
+		return errors.New("already spectating a game")
 	}
 
 	var data EventJoinData
@@ -116,6 +126,9 @@ func (s *Socket) connect(event Event) error {
 	if s.player != nil {
 		return errors.New("already connected")
 	}
+	if s.spectateGame != nil {
+		return errors.New("already spectating a game")
+	}
 
 	var data EventConnectData
 	err := event.UnmarshalData(&data)
@@ -129,6 +142,35 @@ func (s *Socket) connect(event Event) error {
 	}
 
 	log.Tracef("Socket %s connected to player %s (%s).", s.Id, s.player.Id, s.player.Username)
+
+	return s.sendGameInfo()
+}
+
+func (s *Socket) spectate(event Event) error {
+	if s.player != nil {
+		return errors.New("already connected")
+	}
+	if s.spectateGame != nil {
+		return errors.New("already spectating a game")
+	}
+
+	var data EventSpectateData
+	err := event.UnmarshalData(&data)
+	if err != nil {
+		return err
+	}
+
+	game, ok := s.server.getGame(data.GameId)
+	if !ok {
+		return errors.New("game does not exist")
+	}
+	err = game.addSpectator(s)
+	if err != nil {
+		return err
+	}
+	s.spectateGame = game
+
+	log.Tracef("Socket %s is now spectating game %s.", s.Id, game.Id)
 
 	return s.sendGameInfo()
 }
@@ -165,13 +207,19 @@ func (s *Socket) receiveEvent() (Event, error) {
 }
 
 func (s *Socket) sendGameInfo() error {
-	if s.player == nil || s.player.game == nil {
-		return errors.New("not in game")
+	if s.player != nil && s.player.game != nil {
+		return s.Send("server", EventInfo, EventInfoData{
+			Players: s.player.game.playerUsernameMap(),
+		})
 	}
 
-	return s.Send("server", EventInfo, EventInfoData{
-		Players: s.player.game.playerUsernameMap(),
-	})
+	if s.spectateGame != nil {
+		return s.Send("server", EventInfo, EventInfoData{
+			Players: s.spectateGame.playerUsernameMap(),
+		})
+	}
+
+	return errors.New("not in game")
 }
 
 func (s *Socket) send(message []byte) error {
