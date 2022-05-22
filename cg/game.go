@@ -2,7 +2,6 @@ package cg
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -67,9 +66,7 @@ func (g *Game) Send(origin string, eventName EventName, eventData any) error {
 
 	g.spectatorsLock.RLock()
 	defer g.spectatorsLock.RUnlock()
-	fmt.Println(len(g.spectators))
 	for _, s := range g.spectators {
-		fmt.Println(s.Id)
 		err := s.Send(origin, eventName, eventData)
 		if err != nil {
 			return err
