@@ -58,7 +58,7 @@ func (s *Socket) handleConnection() {
 			} else if err == ErrDecodeFailed || err == ErrInvalidMessageType {
 				s.sendError(err.Error())
 			} else {
-				log.Warnf("Socket %s disconnected unexpectedly: %s", s.Id, err)
+				log.Tracef("Socket %s disconnected unexpectedly: %s", s.Id, err)
 				break
 			}
 		}
@@ -74,7 +74,7 @@ func (s *Socket) handleConnection() {
 			if s.player != nil {
 				err = s.player.handleEvent(event)
 			} else {
-				log.Warnf("Socket %s sent an unexpected event: %s", s.Id, event.Name)
+				log.Tracef("Socket %s sent an unexpected event: %s", s.Id, event.Name)
 				err = errors.New("unexpected event")
 			}
 		}
@@ -107,19 +107,7 @@ func (s *Socket) joinGame(event Event) error {
 		return err
 	}
 
-	err = s.server.joinGame(data.GameId, data.Username, s)
-	if err != nil {
-		return err
-	}
-
-	err = s.Send(s.player.Id, EventJoined, EventJoinedData{
-		Secret: s.player.Secret,
-	})
-	if err != nil {
-		return err
-	}
-
-	return s.sendGameInfo()
+	return s.server.joinGame(data.GameId, data.Username, s)
 }
 
 func (s *Socket) connect(event Event) error {
@@ -142,8 +130,7 @@ func (s *Socket) connect(event Event) error {
 	}
 
 	log.Tracef("Socket %s connected to player %s (%s).", s.Id, s.player.Id, s.player.Username)
-
-	return s.sendGameInfo()
+	return nil
 }
 
 func (s *Socket) spectate(event Event) error {
@@ -228,7 +215,7 @@ func (s *Socket) send(message []byte) error {
 }
 
 func (s *Socket) sendError(message string) error {
-	log.Errorf("Error with socket %s: %s", s.Id, message)
+	log.Tracef("Error with socket %s: %s", s.Id, message)
 
 	event := Event{
 		Name: EventError,

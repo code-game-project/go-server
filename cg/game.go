@@ -169,13 +169,30 @@ func (g *Game) join(username string, joiningSocket *Socket) error {
 
 	log.Tracef("Player %s joined game %s with username '%s'.", player.Id, player.game.Id, player.Username)
 
+	err := g.Send(player.Id, EventNewPlayer, EventNewPlayerData{
+		Username: player.Username,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = joiningSocket.Send(player.Id, EventJoined, EventJoinedData{
+		Secret: player.Secret,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = joiningSocket.sendGameInfo()
+	if err != nil {
+		return err
+	}
+
 	if g.OnPlayerJoined != nil {
 		g.OnPlayerJoined(player)
 	}
 
-	return g.Send(player.Id, EventNewPlayer, EventNewPlayerData{
-		Username: player.Username,
-	})
+	return nil
 }
 
 func (g *Game) leave(player *Player) error {
