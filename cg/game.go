@@ -180,11 +180,11 @@ func (g *Game) join(username string, joiningSocket *Socket) error {
 
 func (g *Game) leave(player *Player) error {
 	if g.running {
-		if g.OnPlayerJoined != nil {
+		g.Send(player.Id, EventLeft, EventLeftData{})
+
+		if g.OnPlayerLeft != nil {
 			g.OnPlayerLeft(player)
 		}
-
-		g.Send(player.Id, EventLeft, EventLeftData{})
 	}
 
 	g.playersLock.Lock()
