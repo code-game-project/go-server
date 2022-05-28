@@ -3,7 +3,7 @@
 ![CodeGame GameServer Version](https://img.shields.io/badge/GameServer-v0.1-yellow)
 ![Go version](https://img.shields.io/github/go-mod/go-version/code-game-project/go-server)
 
-This is the Go server library for [CodeGame](https://github.com/code-game-project).
+This is the Go server library for [CodeGame](https://code-game.org).
 
 ## Installation
 
@@ -98,7 +98,7 @@ func main() {
 
 MIT License
 
-Copyright (c) 2022 CodeGame Contributors (https://github.com/orgs/code-game-project/people)
+Copyright (c) 2022 CodeGame Contributors (https://code-game.org/contributors)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
