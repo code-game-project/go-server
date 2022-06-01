@@ -200,7 +200,7 @@ func (s *Server) connect(gameId, playerId, playerSecret string, socket *Socket) 
 	socket.player = player
 	player.addSocket(socket)
 
-	err := socket.Send(playerId, EventConnected, EventConnectedData{
+	err := socket.Send(playerId, ConnectedEvent, ConnectedEventData{
 		Username: player.Username,
 	})
 	if err != nil {

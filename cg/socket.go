@@ -64,11 +64,11 @@ func (s *Socket) handleConnection() {
 		}
 
 		switch event.Name {
-		case EventJoin:
+		case JoinEvent:
 			err = s.joinGame(event)
-		case EventConnect:
+		case ConnectEvent:
 			err = s.connect(event)
-		case EventSpectate:
+		case SpectateEvent:
 			err = s.spectate(event)
 		default:
 			if s.player != nil {
@@ -101,7 +101,7 @@ func (s *Socket) joinGame(event Event) error {
 		return errors.New("already spectating a game")
 	}
 
-	var data EventJoinData
+	var data JoinEventData
 	err := event.UnmarshalData(&data)
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func (s *Socket) connect(event Event) error {
 		return errors.New("already spectating a game")
 	}
 
-	var data EventConnectData
+	var data ConnectEventData
 	err := event.UnmarshalData(&data)
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ func (s *Socket) spectate(event Event) error {
 		return errors.New("already spectating a game")
 	}
 
-	var data EventSpectateData
+	var data SpectateEventData
 	err := event.UnmarshalData(&data)
 	if err != nil {
 		return err
@@ -195,13 +195,13 @@ func (s *Socket) receiveEvent() (Event, error) {
 
 func (s *Socket) sendGameInfo() error {
 	if s.player != nil && s.player.game != nil {
-		return s.Send("server", EventInfo, EventInfoData{
+		return s.Send("server", InfoEvent, InfoEventData{
 			Players: s.player.game.playerUsernameMap(),
 		})
 	}
 
 	if s.spectateGame != nil {
-		return s.Send("server", EventInfo, EventInfoData{
+		return s.Send("server", InfoEvent, InfoEventData{
 			Players: s.spectateGame.playerUsernameMap(),
 		})
 	}
@@ -218,9 +218,9 @@ func (s *Socket) sendError(message string) error {
 	log.Tracef("Error with socket %s: %s", s.Id, message)
 
 	event := Event{
-		Name: EventError,
+		Name: ErrorEvent,
 	}
-	err := event.marshalData(EventErrorData{
+	err := event.marshalData(ErrorEventData{
 		Message: message,
 	})
 	if err != nil {
