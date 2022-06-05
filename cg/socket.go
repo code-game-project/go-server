@@ -15,6 +15,7 @@ type Socket struct {
 	player       *Player
 	spectateGame *Game
 	conn         *websocket.Conn
+	done         chan struct{}
 }
 
 var (
@@ -43,12 +44,20 @@ func (s *Socket) Send(origin string, eventName EventName, eventData any) error {
 		return err
 	}
 
-	log.Tracef("Sending '%s' to %s...", string(jsonData), s.Id)
-
-	return s.conn.WriteMessage(websocket.TextMessage, jsonData)
+	return s.send(jsonData)
 }
 
 func (s *Socket) handleConnection() {
+	s.done = make(chan struct{})
+
+	s.conn.SetReadDeadline(time.Now().Add(s.server.config.WebsocketTimeout))
+	s.conn.SetPongHandler(func(string) error {
+		s.conn.SetReadDeadline(time.Now().Add(s.server.config.WebsocketTimeout))
+		return nil
+	})
+
+	go s.ping()
+
 	for {
 		event, err := s.receiveEvent()
 		if err != nil {
@@ -90,6 +99,19 @@ func (s *Socket) handleConnection() {
 			s.spectateGame.removeSpectator(s.Id)
 		}
 		s.server.removeSocket(s.Id)
+	}
+}
+
+func (s *Socket) ping() {
+	ticker := time.NewTicker((s.server.config.WebsocketTimeout * 9) / 10)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(30*time.Second))
+		case <-s.done:
+			return
+		}
 	}
 }
 
@@ -163,10 +185,9 @@ func (s *Socket) spectate(event Event) error {
 }
 
 func (s *Socket) disconnect() {
-	err := s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "disconnect"), time.Now().Add(5*time.Second))
-	if err != nil {
-		s.conn.Close()
-	}
+	close(s.done)
+	s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "disconnect"), time.Now().Add(5*time.Second))
+	s.conn.Close()
 }
 
 func (s *Socket) receiveEvent() (Event, error) {
@@ -211,6 +232,7 @@ func (s *Socket) sendGameInfo() error {
 
 func (s *Socket) send(message []byte) error {
 	log.Tracef("Sending '%s' to %s...", string(message), s.Id)
+	s.conn.SetWriteDeadline(time.Now().Add(s.server.config.WebsocketTimeout))
 	return s.conn.WriteMessage(websocket.TextMessage, message)
 }
 
@@ -235,5 +257,5 @@ func (s *Socket) sendError(message string) error {
 		return err
 	}
 
-	return s.conn.WriteMessage(websocket.TextMessage, jsonData)
+	return s.send(jsonData)
 }

@@ -60,6 +60,8 @@ type ServerConfig struct {
 	Description string
 	// The URL to the code repository of the game.
 	RepositoryURL string
+	// The time after which an inactive websocket connection will be closed. (default: 15 minutes)
+	WebsocketTimeout time.Duration
 }
 
 type EventSender interface {
@@ -98,6 +100,10 @@ func NewServer(name string, config ServerConfig) *Server {
 			log.Warnf("Web root '%s' is not a directory.", server.config.WebRoot)
 			server.config.WebRoot = ""
 		}
+	}
+
+	if server.config.WebsocketTimeout == 0 {
+		server.config.WebsocketTimeout = 15 * time.Minute
 	}
 
 	return server
