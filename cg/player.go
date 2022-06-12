@@ -55,10 +55,15 @@ func (p *Player) Send(origin string, eventName EventName, eventData any) error {
 	return nil
 }
 
+// Leave the game.
+func (p *Player) Leave() error {
+	return p.game.leave(p)
+}
+
 func (p *Player) handleEvent(event Event) error {
 	switch event.Name {
 	case LeaveEvent:
-		return p.game.leave(p)
+		return p.Leave()
 	default:
 		if p.game == nil {
 			return errors.New(fmt.Sprintf("unexpected event: %s", event.Name))
