@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/rs/cors"
 )
 
 type Server struct {
@@ -123,8 +124,14 @@ func (s *Server) Run(runGameFunc func(game *Game)) {
 
 	s.runGameFunc = runGameFunc
 
+	handler := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedHeaders: []string{"*"},
+		AllowedMethods: []string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"},
+	}).Handler(r)
+
 	log.Infof("Listening on port %d...", s.config.Port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), r))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), handler))
 }
 
 func (s *Server) createGame(public bool) (string, error) {
