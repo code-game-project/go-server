@@ -8,6 +8,9 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,6 +42,10 @@ type ServerConfig struct {
 	CGEFilepath string
 	// All files in this direcory will be served.
 	WebRoot string
+	// The path to the file which should be served on the `/spectate` endpoint. (default: ${webroot}/spectate.html)
+	SpectateFilepath string
+	// The path to the file which should be served on the `/getting-started` endpoint. (default: ${webroot}/getting-started.html)
+	GettingStartedFilepath string
 	// The maximum number of allowed sockets per player (0 => unlimited).
 	MaxSocketsPerPlayer int
 	// The maximum number of allowed players per game (0 => unlimited).
@@ -101,6 +108,14 @@ func NewServer(name string, config ServerConfig) *Server {
 			log.Warnf("Web root '%s' is not a directory.", server.config.WebRoot)
 			server.config.WebRoot = ""
 		}
+
+		if server.config.SpectateFilepath == "" {
+			server.config.SpectateFilepath = filepath.Join(server.config.WebRoot, "spectate.html")
+		}
+
+		if server.config.GettingStartedFilepath == "" {
+			server.config.GettingStartedFilepath = filepath.Join(server.config.WebRoot, "getting-started.html")
+		}
 	}
 
 	if server.config.WebsocketTimeout == 0 {
@@ -118,8 +133,33 @@ func (s *Server) Run(runGameFunc func(game *Game)) {
 	r.HandleFunc("/events", s.eventsEndpoint).Methods("GET")
 	r.HandleFunc("/games", s.gamesEndpoint).Methods("GET")
 	r.HandleFunc("/games", s.createGameEndpoint).Methods("POST")
+
+	if s.config.SpectateFilepath != "" {
+		r.HandleFunc("/spectate", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, s.config.SpectateFilepath)
+		})
+	}
+	if s.config.GettingStartedFilepath != "" {
+		r.HandleFunc("/getting-started", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, s.config.GettingStartedFilepath)
+		})
+	}
 	if s.config.WebRoot != "" {
-		r.PathPrefix("/").Handler(http.FileServer(http.Dir(s.config.WebRoot)))
+		r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fs := http.Dir(s.config.WebRoot)
+
+			upath := r.URL.Path
+			if !strings.HasPrefix(upath, "/") {
+				upath = "/" + upath
+			}
+
+			if _, err := fs.Open(path.Clean(upath)); err != nil {
+				http.ServeFile(w, r, filepath.Join(s.config.WebRoot, "index.html"))
+				return
+			}
+
+			http.FileServer(fs).ServeHTTP(w, r)
+		})
 	}
 
 	s.runGameFunc = runGameFunc
