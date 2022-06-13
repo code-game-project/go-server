@@ -110,11 +110,17 @@ func NewServer(name string, config ServerConfig) *Server {
 		}
 
 		if server.config.SpectateFilepath == "" {
-			server.config.SpectateFilepath = filepath.Join(server.config.WebRoot, "spectate.html")
+			path := filepath.Join(server.config.WebRoot, "spectate.html")
+			if _, err := os.Stat(path); err == nil {
+				server.config.SpectateFilepath = path
+			}
 		}
 
 		if server.config.GettingStartedFilepath == "" {
-			server.config.GettingStartedFilepath = filepath.Join(server.config.WebRoot, "getting-started.html")
+			path := filepath.Join(server.config.WebRoot, "getting-started.html")
+			if _, err := os.Stat(path); err == nil {
+				server.config.GettingStartedFilepath = path
+			}
 		}
 	}
 
