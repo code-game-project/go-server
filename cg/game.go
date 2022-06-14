@@ -15,6 +15,7 @@ type Game struct {
 	OnPlayerJoined          func(player *Player)
 	OnPlayerLeft            func(player *Player)
 	OnPlayerSocketConnected func(player *Player, socket *Socket)
+	OnSpectatorConnected    func(socket *Socket)
 
 	eventsChan chan EventWrapper
 
@@ -236,6 +237,11 @@ func (g *Game) addSpectator(socket *Socket) error {
 	}
 
 	g.spectators[socket.Id] = socket
+
+	if g.OnSpectatorConnected != nil {
+		g.OnSpectatorConnected(socket)
+	}
+
 	return nil
 }
 

@@ -39,6 +39,10 @@ func (g *Game) OnPlayerSocketConnected(player *cg.Player, socket *cg.Socket) {
 	fmt.Println("Player connected a new socket:", player.Username)
 }
 
+func (g *Game) OnSpectatorConnected(socket *cg.Socket) {
+	fmt.Println("A spectator connected:", socket.Id)
+}
+
 func (g *Game) pollEvents() {
 	for {
 		event, ok := g.game.NextEvent()
@@ -87,6 +91,7 @@ func main() {
 		cgGame.OnPlayerJoined = game.OnPlayerJoined
 		cgGame.OnPlayerLeft = game.OnPlayerLeft
 		cgGame.OnPlayerSocketConnected = game.OnPlayerSocketConnected
+		cgGame.OnSpectatorConnected = game.OnSpectatorConnected
 
 		// Run the game loop.
 		game.Run()
