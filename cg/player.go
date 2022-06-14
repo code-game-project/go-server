@@ -55,9 +55,16 @@ func (p *Player) Send(origin string, eventName EventName, eventData any) error {
 	return nil
 }
 
-// Leave the game.
+// Leave leaves the game.
 func (p *Player) Leave() error {
 	return p.game.leave(p)
+}
+
+// SocketCount returns the amount of sockets currently connected to the player.
+func (p *Player) SocketCount() int {
+	p.socketsLock.RLock()
+	defer p.socketsLock.RUnlock()
+	return p.socketCount
 }
 
 func (p *Player) handleEvent(event Event) error {
