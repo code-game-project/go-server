@@ -230,13 +230,13 @@ func (g *Game) playerUsernameMap() map[string]string {
 
 func (g *Game) addSpectator(socket *Socket) error {
 	g.spectatorsLock.Lock()
-	defer g.spectatorsLock.Unlock()
-
 	if g.server.config.MaxSpectatorsPerGame > 0 && len(g.spectators) >= g.server.config.MaxSpectatorsPerGame {
+		g.spectatorsLock.Unlock()
 		return errors.New("max spectator count reached")
 	}
 
 	g.spectators[socket.Id] = socket
+	g.spectatorsLock.Unlock()
 
 	err := socket.sendGameInfo()
 	if err != nil {
