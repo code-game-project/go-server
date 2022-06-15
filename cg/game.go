@@ -238,6 +238,11 @@ func (g *Game) addSpectator(socket *Socket) error {
 
 	g.spectators[socket.Id] = socket
 
+	err := socket.sendGameInfo()
+	if err != nil {
+		return err
+	}
+
 	if g.OnSpectatorConnected != nil {
 		g.OnSpectatorConnected(socket)
 	}
