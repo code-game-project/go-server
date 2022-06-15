@@ -174,11 +174,12 @@ func (s *Socket) spectate(event Event) error {
 		return errors.New("game does not exist")
 	}
 
+	s.spectateGame = game
+
 	err = game.addSpectator(s)
 	if err != nil {
 		return err
 	}
-	s.spectateGame = game
 
 	log.Tracef("Socket %s is now spectating game %s.", s.Id, game.Id)
 	return nil
