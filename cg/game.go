@@ -17,7 +17,7 @@ type Game struct {
 	OnPlayerSocketConnected func(player *Player, socket *Socket)
 	OnSpectatorConnected    func(socket *Socket)
 
-	eventsChan chan EventWrapper
+	cmdChan chan CommandWrapper
 
 	public bool
 
@@ -31,9 +31,7 @@ type Game struct {
 
 	running bool
 
-	socketCountLock sync.RWMutex
-	socketCount     int
-	lastConnection  time.Time
+	markedAsEmpty time.Time
 }
 
 type EventWrapper struct {
@@ -41,25 +39,24 @@ type EventWrapper struct {
 	Event  Event
 }
 
-func (s *Server) newGame(id string, public bool) *Game {
+func newGame(server *Server, id string, public bool) *Game {
 	return &Game{
-		Id:             id,
-		eventsChan:     make(chan EventWrapper, 10),
-		public:         public,
-		players:        make(map[string]*Player),
-		spectators:     make(map[string]*Socket),
-		server:         s,
-		running:        true,
-		lastConnection: time.Now(),
+		Id:         id,
+		cmdChan:    make(chan CommandWrapper, 10),
+		public:     public,
+		players:    make(map[string]*Player),
+		spectators: make(map[string]*Socket),
+		server:     server,
+		running:    true,
 	}
 }
 
 // Send sends the event to all players currently in the game.
-func (g *Game) Send(origin string, eventName EventName, eventData any) error {
+func (g *Game) Send(event EventName, data any) error {
 	g.playersLock.RLock()
 	defer g.playersLock.RUnlock()
 	for _, p := range g.players {
-		err := p.Send(origin, eventName, eventData)
+		err := p.Send(event, data)
 		if err != nil {
 			return err
 		}
@@ -68,7 +65,7 @@ func (g *Game) Send(origin string, eventName EventName, eventData any) error {
 	g.spectatorsLock.RLock()
 	defer g.spectatorsLock.RUnlock()
 	for _, s := range g.spectators {
-		err := s.Send(origin, eventName, eventData)
+		err := s.Send(event, data)
 		if err != nil {
 			return err
 		}
@@ -85,23 +82,23 @@ func (g *Game) GetPlayer(playerId string) (*Player, bool) {
 	return player, ok
 }
 
-// NextEvent returns the next event in the queue or ok = false if there is none.
-func (g *Game) NextEvent() (EventWrapper, bool) {
+// NextCommand returns the next command in the queue or ok = false if there is none.
+func (g *Game) NextCommand() (CommandWrapper, bool) {
 	select {
-	case wrapper, ok := <-g.eventsChan:
+	case wrapper, ok := <-g.cmdChan:
 		if ok {
 			return wrapper, true
 		} else {
-			return EventWrapper{}, false
+			return CommandWrapper{}, false
 		}
 	default:
-		return EventWrapper{}, false
+		return CommandWrapper{}, false
 	}
 }
 
-// WaitForNextEvent waits for and then returns the next event in the queue or ok = false if the game has been closed.
-func (g *Game) WaitForNextEvent() (EventWrapper, bool) {
-	wrapper, ok := <-g.eventsChan
+// WaitForNextCommand waits for and then returns the next command in the queue or ok = false if the game has been closed.
+func (g *Game) WaitForNextCommand() (CommandWrapper, bool) {
+	wrapper, ok := <-g.cmdChan
 	return wrapper, ok
 }
 
@@ -127,79 +124,51 @@ func (g *Game) Close() error {
 		}
 	}
 
-	close(g.eventsChan)
+	close(g.cmdChan)
 
 	log.Tracef("Removed game %s.", g.Id)
 
 	return nil
 }
 
-func (g *Game) join(username string, joiningSocket *Socket) error {
-	if g.server.config.KickInactivePlayerDelay > 0 {
+func (g *Game) join(username string) (string, string, error) {
+	if g.server.config.MaxPlayersPerGame > 0 {
 		g.playersLock.RLock()
-		for _, p := range g.players {
-			p.socketsLock.RLock()
-			if p.socketCount == 0 && time.Now().Sub(p.lastConnection) >= g.server.config.KickInactivePlayerDelay {
-				g.playersLock.RUnlock()
-				p.socketsLock.RUnlock()
-				g.leave(p)
-				g.playersLock.RLock()
-			} else {
-				p.socketsLock.RUnlock()
-			}
-		}
+		playerCount := len(g.players)
 		g.playersLock.RUnlock()
+		if playerCount >= g.server.config.MaxPlayersPerGame {
+			return "", "", errors.New("max player count reached")
+		}
 	}
+
+	g.markedAsEmpty = time.Time{}
 
 	playerId := uuid.NewString()
 	player := &Player{
-		Id:       playerId,
-		Username: username,
-		Secret:   generatePlayerSecret(),
-		server:   g.server,
-		sockets:  make(map[string]*Socket),
-		game:     g,
+		Id:           playerId,
+		Username:     username,
+		Secret:       generatePlayerSecret(),
+		server:       g.server,
+		sockets:      make(map[string]*Socket),
+		game:         g,
+		missedEvents: make([][]byte, 0),
 	}
-
-	joiningSocket.player = player
 
 	g.playersLock.Lock()
 	g.players[playerId] = player
-	g.players[playerId].addSocket(joiningSocket)
 	g.playersLock.Unlock()
 
 	log.Tracef("Player %s joined game %s with username '%s'.", player.Id, player.game.Id, player.Username)
-
-	err := g.Send(player.Id, NewPlayerEvent, NewPlayerEventData{
-		Username: player.Username,
-	})
-	if err != nil {
-		return err
-	}
-
-	err = joiningSocket.Send(player.Id, JoinedEvent, JoinedEventData{
-		Secret: player.Secret,
-	})
-	if err != nil {
-		return err
-	}
-
-	err = joiningSocket.sendGameInfo()
-	if err != nil {
-		return err
-	}
 
 	if g.OnPlayerJoined != nil {
 		g.OnPlayerJoined(player)
 	}
 
-	return nil
+	return player.Id, player.Secret, nil
 }
 
 func (g *Game) leave(player *Player) error {
 	if g.running {
-		g.Send(player.Id, LeftEvent, LeftEventData{})
-
 		if g.OnPlayerLeft != nil {
 			g.OnPlayerLeft(player)
 		}
@@ -207,6 +176,7 @@ func (g *Game) leave(player *Player) error {
 
 	g.playersLock.Lock()
 	delete(g.players, player.Id)
+	playerCount := len(g.players)
 	g.playersLock.Unlock()
 
 	for _, socket := range player.sockets {
@@ -214,6 +184,10 @@ func (g *Game) leave(player *Player) error {
 	}
 
 	log.Tracef("Player %s (%s) left the game %s", player.Id, player.Username, player.game.Id)
+
+	if playerCount == 0 {
+		g.markedAsEmpty = time.Now()
+	}
 
 	return nil
 }
@@ -235,13 +209,9 @@ func (g *Game) addSpectator(socket *Socket) error {
 		return errors.New("max spectator count reached")
 	}
 
+	socket.spectateGame = g
 	g.spectators[socket.Id] = socket
 	g.spectatorsLock.Unlock()
-
-	err := socket.sendGameInfo()
-	if err != nil {
-		return err
-	}
 
 	if g.OnSpectatorConnected != nil {
 		g.OnSpectatorConnected(socket)
@@ -254,4 +224,22 @@ func (g *Game) removeSpectator(id string) {
 	g.spectatorsLock.Lock()
 	delete(g.spectators, id)
 	g.spectatorsLock.Unlock()
+}
+
+func (g *Game) kickInactivePlayers() {
+	if g.server.config.KickInactivePlayerDelay > 0 {
+		g.playersLock.RLock()
+		for _, p := range g.players {
+			p.socketsLock.RLock()
+			if p.socketCount == 0 && time.Now().Sub(p.lastConnection) >= g.server.config.KickInactivePlayerDelay {
+				g.playersLock.RUnlock()
+				p.socketsLock.RUnlock()
+				g.leave(p)
+				g.playersLock.RLock()
+			} else {
+				p.socketsLock.RUnlock()
+			}
+		}
+		g.playersLock.RUnlock()
+	}
 }

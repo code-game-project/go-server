@@ -1,6 +1,5 @@
 # Go-Server
-![CodeGame Protocol Version](https://img.shields.io/badge/Protocol-v0.6-orange)
-![CodeGame GameServer Version](https://img.shields.io/badge/GameServer-v0.1-yellow)
+![CodeGame Version](https://img.shields.io/badge/CodeGame-v0.7-orange)
 ![Go version](https://img.shields.io/github/go-mod/go-version/code-game-project/go-server)
 
 This is the Go server library for [CodeGame](https://code-game.org).
@@ -24,7 +23,7 @@ import (
 )
 
 type Game struct {
-	game *cg.Game
+	cg *cg.Game
 }
 
 func (g *Game) OnPlayerJoined(player *cg.Player) {
@@ -43,24 +42,24 @@ func (g *Game) OnSpectatorConnected(socket *cg.Socket) {
 	fmt.Println("A spectator connected:", socket.Id)
 }
 
-func (g *Game) pollEvents() {
+func (g *Game) pollCommands() {
 	for {
-		event, ok := g.game.NextEvent()
+		cmd, ok := g.cg.NextCommand() // Alternatively WaitForNextCommand()
 		if !ok {
 			return
 		}
-		g.handleEvent(event.Event, event.Player)
+		g.handleCommand(cmd.Origin, cmd.Cmd)
 	}
 }
 
-func (g *Game) handleEvent(event cg.Event, player *cg.Player) {
-	fmt.Printf("Received '%s' event from '%s'.\n", event.Name, player.Username)
+func (g *Game) handleCommand(origin *cg.Player, cmd cg.Command) {
+	fmt.Printf("Received '%s' command from '%s'.\n", cmd.Name, origin.Username)
 }
 
 func (g *Game) Run() {
 	// Loop until the game is closed.
-	for g.game.Running() {
-		g.pollEvents()
+	for g.cg.Running() {
+		g.pollCommands()
 
 		// game logic
 
@@ -84,7 +83,7 @@ func main() {
 
 	server.Run(func(cgGame *cg.Game) {
 		game := Game{
-			game: cgGame,
+			cg: cgGame,
 		}
 
 		// Register callbacks.

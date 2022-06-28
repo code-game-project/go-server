@@ -6,19 +6,26 @@ import (
 
 type EventName string
 
-type eventWrapper struct {
-	Origin string `json:"origin"`
-	Event  Event  `json:"event"`
-}
-
 type Event struct {
 	Name EventName       `json:"name"`
 	Data json.RawMessage `json:"data"`
 }
 
-// UnmarshalData decodes the event data into the struct pointed to by targetObjPtr.
-func (e *Event) UnmarshalData(targetObjPtr any) error {
-	return json.Unmarshal(e.Data, targetObjPtr)
+type CommandName string
+
+type Command struct {
+	Name CommandName     `json:"name"`
+	Data json.RawMessage `json:"data"`
+}
+
+type CommandWrapper struct {
+	Origin *Player
+	Cmd    Command
+}
+
+// UnmarshalData decodes the command data into the struct pointed to by targetObjPtr.
+func (c *Command) UnmarshalData(targetObjPtr any) error {
+	return json.Unmarshal(c.Data, targetObjPtr)
 }
 
 // marshalData encodes obj into the Data field of the event.

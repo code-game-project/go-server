@@ -2,35 +2,30 @@ package cg
 
 import (
 	"crypto/rand"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
 	"os"
-	"path"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/Bananenpro/log"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/rs/cors"
 )
 
 type Server struct {
-	socketsPlayersLock sync.RWMutex
-	sockets            map[string]*Socket
-	players            map[string]*Player
-
 	gamesLock sync.RWMutex
 	games     map[string]*Game
 
 	upgrader websocket.Upgrader
 	config   ServerConfig
+
+	killTicker *time.Ticker
 
 	runGameFunc func(game *Game)
 }
@@ -42,10 +37,6 @@ type ServerConfig struct {
 	CGEFilepath string
 	// All files in this direcory will be served.
 	WebRoot string
-	// The path to the file which should be served on the `/spectate` endpoint. (default: ${webroot}/spectate.html)
-	SpectateFilepath string
-	// The path to the file which should be served on the `/getting-started` endpoint. (default: ${webroot}/getting-started.html)
-	GettingStartedFilepath string
 	// The maximum number of allowed sockets per player (0 => unlimited).
 	MaxSocketsPerPlayer int
 	// The maximum number of allowed players per game (0 => unlimited).
@@ -73,16 +64,14 @@ type ServerConfig struct {
 }
 
 type EventSender interface {
-	Send(origin string, event EventName, eventData any) error
+	Send(event EventName, data any) error
 }
 
 func NewServer(name string, config ServerConfig) *Server {
 	config.Name = name
 
 	server := &Server{
-		sockets: make(map[string]*Socket),
-		players: make(map[string]*Player),
-		games:   make(map[string]*Game),
+		games: make(map[string]*Game),
 
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -108,24 +97,23 @@ func NewServer(name string, config ServerConfig) *Server {
 			log.Warnf("Web root '%s' is not a directory.", server.config.WebRoot)
 			server.config.WebRoot = ""
 		}
-
-		if server.config.SpectateFilepath == "" {
-			path := filepath.Join(server.config.WebRoot, "spectate.html")
-			if _, err := os.Stat(path); err == nil {
-				server.config.SpectateFilepath = path
-			}
-		}
-
-		if server.config.GettingStartedFilepath == "" {
-			path := filepath.Join(server.config.WebRoot, "getting-started.html")
-			if _, err := os.Stat(path); err == nil {
-				server.config.GettingStartedFilepath = path
-			}
-		}
 	}
 
 	if server.config.WebsocketTimeout == 0 {
 		server.config.WebsocketTimeout = 15 * time.Minute
+	}
+
+	if server.config.KickInactivePlayerDelay > 0 || server.config.DeleteInactiveGameDelay > 0 {
+		duration := server.config.KickInactivePlayerDelay
+		if server.config.DeleteInactiveGameDelay > 0 && (duration == 0 || duration > server.config.DeleteInactiveGameDelay) {
+			duration = server.config.DeleteInactiveGameDelay
+		}
+		server.killTicker = time.NewTicker(duration)
+		go func() {
+			for range server.killTicker.C {
+				server.removeInactiveGamesPlayers()
+			}
+		}()
 	}
 
 	return server
@@ -133,48 +121,18 @@ func NewServer(name string, config ServerConfig) *Server {
 
 // Run starts the webserver and listens for new connections.
 func (s *Server) Run(runGameFunc func(game *Game)) {
-	r := mux.NewRouter()
-	r.HandleFunc("/ws", s.wsEndpoint).Methods("GET")
-	r.HandleFunc("/info", s.infoEndpoint).Methods("GET")
-	r.HandleFunc("/events", s.eventsEndpoint).Methods("GET")
-	r.HandleFunc("/games", s.gamesEndpoint).Methods("GET")
-	r.HandleFunc("/games", s.createGameEndpoint).Methods("POST")
-
-	if s.config.SpectateFilepath != "" {
-		r.HandleFunc("/spectate", func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, s.config.SpectateFilepath)
-		})
-	}
-	if s.config.GettingStartedFilepath != "" {
-		r.HandleFunc("/getting-started", func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, s.config.GettingStartedFilepath)
-		})
-	}
-	if s.config.WebRoot != "" {
-		r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fs := http.Dir(s.config.WebRoot)
-
-			upath := r.URL.Path
-			if !strings.HasPrefix(upath, "/") {
-				upath = "/" + upath
-			}
-
-			if _, err := fs.Open(path.Clean(upath)); err != nil {
-				http.ServeFile(w, r, filepath.Join(s.config.WebRoot, "index.html"))
-				return
-			}
-
-			http.FileServer(fs).ServeHTTP(w, r)
-		})
-	}
-
 	s.runGameFunc = runGameFunc
+
+	router := chi.NewMux()
+	router.Use(middleware.Recoverer)
+	router.Route("/api", s.apiRoutes)
+	router.Route("/", s.frontendRoutes)
 
 	handler := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedHeaders: []string{"*"},
 		AllowedMethods: []string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"},
-	}).Handler(r)
+	}).Handler(router)
 
 	log.Infof("Listening on port %d...", s.config.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), handler))
@@ -184,27 +142,13 @@ func (s *Server) createGame(public bool) (string, error) {
 	s.gamesLock.Lock()
 	defer s.gamesLock.Unlock()
 
-	if s.config.DeleteInactiveGameDelay > 0 {
-		for _, g := range s.games {
-			g.socketCountLock.RLock()
-			if g.socketCount == 0 && time.Now().Sub(g.lastConnection) >= s.config.DeleteInactiveGameDelay {
-				s.gamesLock.Unlock()
-				g.socketCountLock.RUnlock()
-				g.Close()
-				s.gamesLock.Lock()
-			} else {
-				g.socketCountLock.RUnlock()
-			}
-		}
-	}
-
 	if s.config.MaxGames > 0 && len(s.games) >= s.config.MaxGames {
 		return "", errors.New("max game count reached")
 	}
 
 	id := uuid.NewString()
 
-	game := s.newGame(id, public)
+	game := newGame(s, id, public)
 
 	s.games[id] = game
 
@@ -224,67 +168,24 @@ func (s *Server) removeGame(game *Game) {
 	s.gamesLock.Unlock()
 }
 
-func (s *Server) joinGame(gameId, username string, joiningSocket *Socket) error {
-	game, ok := s.getGame(gameId)
-	if !ok {
-		return errors.New("game does not exist")
+func (s *Server) removeInactiveGamesPlayers() {
+	for _, g := range s.games {
+		g.kickInactivePlayers()
+
+		if s.config.DeleteInactiveGameDelay > 0 {
+			g.playersLock.RLock()
+			playerCount := len(g.players)
+			g.playersLock.RUnlock()
+
+			if playerCount == 0 {
+				if g.markedAsEmpty == (time.Time{}) {
+					g.markedAsEmpty = time.Now()
+				} else if time.Now().After(g.markedAsEmpty.Add(s.config.DeleteInactiveGameDelay)) {
+					g.Close()
+				}
+			}
+		}
 	}
-
-	if s.config.MaxPlayersPerGame > 0 && len(game.players) >= s.config.MaxPlayersPerGame {
-		return errors.New("max player count reached")
-	}
-
-	return game.join(username, joiningSocket)
-}
-
-func (s *Server) connect(gameId, playerId, playerSecret string, socket *Socket) error {
-	game, ok := s.getGame(gameId)
-	if !ok {
-		return errors.New("game does not exist")
-	}
-
-	player, ok := game.GetPlayer(playerId)
-	if !ok {
-		return errors.New("player does not exist")
-	}
-
-	if subtle.ConstantTimeCompare([]byte(player.Secret), []byte(playerSecret)) == 0 {
-		return errors.New("wrong player secret")
-	}
-
-	if s.config.MaxSocketsPerPlayer > 0 && len(player.sockets) >= s.config.MaxSocketsPerPlayer {
-		return errors.New("max socket count reached")
-	}
-
-	socket.player = player
-	player.addSocket(socket)
-
-	err := socket.Send(playerId, ConnectedEvent, ConnectedEventData{
-		Username: player.Username,
-	})
-	if err != nil {
-		return err
-	}
-
-	socket.sendGameInfo()
-
-	if game.OnPlayerSocketConnected != nil {
-		game.OnPlayerSocketConnected(player, socket)
-	}
-
-	return nil
-}
-
-func (s *Server) addSocket(socket *Socket) {
-	s.socketsPlayersLock.Lock()
-	s.sockets[socket.Id] = socket
-	s.socketsPlayersLock.Unlock()
-}
-
-func (s *Server) removeSocket(id string) {
-	s.socketsPlayersLock.Lock()
-	delete(s.sockets, id)
-	s.socketsPlayersLock.Unlock()
 }
 
 func (s *Server) getGame(gameId string) (*Game, bool) {

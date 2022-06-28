@@ -13,32 +13,31 @@ type Player struct {
 	Username string
 	Secret   string
 
-	game        *Game
-	socketsLock sync.RWMutex
-	sockets     map[string]*Socket
-	server      *Server
+	game   *Game
+	server *Server
 
-	// protected by socketsLock
+	socketsLock    sync.RWMutex
+	sockets        map[string]*Socket
 	socketCount    int
 	lastConnection time.Time
+
+	missedEventsLock sync.RWMutex
+	missedEvents     [][]byte
 }
 
 // Send sends the event to all sockets currently connected to the player.
-func (p *Player) Send(origin string, eventName EventName, eventData any) error {
-	event := Event{
-		Name: eventName,
+// Events are added to a queue in case there are no sockets.
+// The next socket to connect to the player will then receive the missed events.
+func (p *Player) Send(event EventName, data any) error {
+	e := Event{
+		Name: event,
 	}
-	err := event.marshalData(eventData)
+	err := e.marshalData(data)
 	if err != nil {
 		return err
 	}
 
-	wrapper := eventWrapper{
-		Origin: origin,
-		Event:  event,
-	}
-
-	jsonData, err := json.Marshal(wrapper)
+	jsonData, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
@@ -50,6 +49,12 @@ func (p *Player) Send(origin string, eventName EventName, eventData any) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if len(p.sockets) == 0 {
+		p.missedEventsLock.Lock()
+		p.missedEvents = append(p.missedEvents, jsonData)
+		p.missedEventsLock.Unlock()
 	}
 
 	return nil
@@ -67,55 +72,49 @@ func (p *Player) SocketCount() int {
 	return p.socketCount
 }
 
-func (p *Player) handleEvent(event Event) error {
-	switch event.Name {
-	case LeaveEvent:
-		return p.Leave()
-	default:
-		if p.game == nil {
-			return errors.New(fmt.Sprintf("unexpected event: %s", event.Name))
-		}
-		p.game.eventsChan <- EventWrapper{
-			Player: p,
-			Event:  event,
-		}
+func (p *Player) handleCommand(cmd Command) error {
+	if p.game == nil {
+		return errors.New(fmt.Sprintf("unexpected command: %s", cmd.Name))
+	}
+	p.game.cmdChan <- CommandWrapper{
+		Origin: p,
+		Cmd:    cmd,
 	}
 	return nil
 }
 
-func (p *Player) addSocket(socket *Socket) {
+func (p *Player) addSocket(socket *Socket) error {
+	if p.server.config.MaxSocketsPerPlayer > 0 && p.SocketCount() >= p.server.config.MaxSocketsPerPlayer {
+		return errors.New("max socket count reached for this player")
+	}
+
+	socket.player = p
+
 	p.socketsLock.Lock()
 	p.sockets[socket.Id] = socket
 	p.socketCount++
 	p.socketsLock.Unlock()
 
-	if p.game != nil {
-		p.game.socketCountLock.Lock()
-		p.game.socketCount++
-		p.game.socketCountLock.Unlock()
+	p.missedEventsLock.Lock()
+	if len(p.missedEvents) > 0 {
+		for _, e := range p.missedEvents {
+			socket.send(e)
+		}
+		p.missedEvents = make([][]byte, 0)
 	}
+	p.missedEventsLock.Unlock()
+	return nil
 }
 
 func (p *Player) disconnectSocket(id string) {
 	p.socketsLock.Lock()
 
-	socket, ok := p.sockets[id]
-	if ok {
+	if socket, ok := p.sockets[id]; ok {
 		socket.disconnect()
 		delete(p.sockets, id)
 		p.socketCount--
 		p.lastConnection = time.Now()
-		if p.game != nil {
-			p.game.socketCountLock.Lock()
-			p.game.socketCount--
-			if p.game.socketCount == 0 {
-				p.game.lastConnection = time.Now()
-			}
-			p.game.socketCountLock.Unlock()
-		}
 	}
 
 	p.socketsLock.Unlock()
-
-	p.server.removeSocket(id)
 }
