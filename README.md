@@ -102,7 +102,7 @@ func main() {
 
 MIT License
 
-Copyright (c) 2022 CodeGame Contributors (https://code-game.org/contributors)
+Copyright (c) 2022 Julian Hofmann
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
