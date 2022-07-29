@@ -107,7 +107,8 @@ func (s *Server) createGameEndpoint(w http.ResponseWriter, r *http.Request) {
 	defer body.Close()
 
 	type request struct {
-		Public *bool `json:"public"`
+		Public *bool           `json:"public"`
+		Config json.RawMessage `json:"config"`
 	}
 	var req request
 	err := json.NewDecoder(body).Decode(&req)
@@ -116,7 +117,7 @@ func (s *Server) createGameEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gameId, err := s.createGame(*req.Public)
+	gameId, err := s.createGame(*req.Public, req.Config)
 	if err != nil {
 		send(w, http.StatusForbidden, "max game count reached")
 		return

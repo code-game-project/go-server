@@ -2,6 +2,7 @@ package cg
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -29,7 +30,7 @@ type Server struct {
 
 	killTicker *time.Ticker
 
-	runGameFunc func(game *Game)
+	runGameFunc func(game *Game, config json.RawMessage)
 }
 
 type ServerConfig struct {
@@ -123,7 +124,7 @@ func NewServer(name string, config ServerConfig) *Server {
 }
 
 // Run starts the webserver and listens for new connections.
-func (s *Server) Run(runGameFunc func(game *Game)) {
+func (s *Server) Run(runGameFunc func(game *Game, config json.RawMessage)) {
 	s.runGameFunc = runGameFunc
 
 	router := chi.NewMux()
@@ -141,7 +142,7 @@ func (s *Server) Run(runGameFunc func(game *Game)) {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), handler))
 }
 
-func (s *Server) createGame(public bool) (string, error) {
+func (s *Server) createGame(public bool, config json.RawMessage) (string, error) {
 	s.gamesLock.Lock()
 	defer s.gamesLock.Unlock()
 
@@ -156,7 +157,7 @@ func (s *Server) createGame(public bool) (string, error) {
 	s.games[id] = game
 
 	go func() {
-		s.runGameFunc(game)
+		s.runGameFunc(game, config)
 		game.Close()
 	}()
 

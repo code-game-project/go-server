@@ -81,7 +81,7 @@ func main() {
 		RepositoryURL:           "https://example.com",
 	})
 
-	server.Run(func(cgGame *cg.Game) {
+	server.Run(func(cgGame *cg.Game, config json.RawMessage) {
 		game := Game{
 			cg: cgGame,
 		}
