@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/Bananenpro/log"
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,10 @@ func (s *Server) apiRoutes(r chi.Router) {
 	r.Get("/games/{gameId}/players/{playerId}", s.playerEndpoint)
 	r.Get("/games/{gameId}/connect", s.connectEndpoint)
 	r.Get("/games/{gameId}/spectate", s.spectateEndpoint)
+
+	r.Get("/debug", s.debugServer)
+	r.Get("/games/{gameId}/debug", s.debugGame)
+	r.Get("/games/{gameId}/players/{playerId}/debug", s.debugPlayer)
 }
 
 func (s *Server) infoEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -174,19 +179,19 @@ func (s *Server) createPlayerEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	playerId, secret, err := game.join(req.Username)
+	playerId, playerSecret, err := game.join(req.Username)
 	if err != nil {
 		send(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	type response struct {
-		PlayerId string `json:"player_id"`
-		Secret   string `json:"secret"`
+		PlayerId     string `json:"player_id"`
+		PlayerSecret string `json:"player_secret"`
 	}
 	sendJSON(w, http.StatusCreated, response{
-		PlayerId: playerId,
-		Secret:   secret,
+		PlayerId:     playerId,
+		PlayerSecret: playerSecret,
 	})
 }
 
@@ -221,9 +226,9 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 		send(w, http.StatusBadRequest, "missing `player_id` query parameter")
 		return
 	}
-	secret := r.URL.Query().Get("secret")
-	if secret == "" {
-		send(w, http.StatusBadRequest, "missing `secret` query parameter")
+	playerSecret := r.URL.Query().Get("player_secret")
+	if playerSecret == "" {
+		send(w, http.StatusBadRequest, "missing `player_secret` query parameter")
 		return
 	}
 
@@ -239,18 +244,18 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if player.Secret != secret {
+	if player.Secret != playerSecret {
 		send(w, http.StatusForbidden, "wrong player secret")
 		return
 	}
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Errorf("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
+		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
 		return
 	}
 
-	socket := &Socket{
+	socket := &GameSocket{
 		Id:     uuid.NewString(),
 		server: s,
 		conn:   conn,
@@ -262,7 +267,7 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Tracef("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
+	s.log.Trace("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
 
 	go socket.handleConnection()
 }
@@ -278,11 +283,11 @@ func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Errorf("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
+		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
 		return
 	}
 
-	socket := &Socket{
+	socket := &GameSocket{
 		Id:     uuid.NewString(),
 		server: s,
 		conn:   conn,
@@ -293,9 +298,124 @@ func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
 		send(w, http.StatusForbidden, err.Error())
 	}
 
-	log.Tracef("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
+	s.log.Trace("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
 
 	go socket.handleConnection()
+}
+
+func (s *Server) debugServer(w http.ResponseWriter, r *http.Request) {
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
+		return
+	}
+
+	socket := &debugSocket{
+		id:         uuid.NewString(),
+		server:     s,
+		logger:     s.log,
+		conn:       conn,
+		severities: getDebugSeverities(r),
+	}
+
+	socket.logger.addDebugSocket(socket)
+
+	go socket.handleConnection()
+}
+
+func (s *Server) debugGame(w http.ResponseWriter, r *http.Request) {
+	gameId := chi.URLParam(r, "gameId")
+	game, ok := s.getGame(gameId)
+	if !ok {
+		send(w, http.StatusNotFound, "game not found")
+		return
+	}
+
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
+		return
+	}
+
+	socket := &debugSocket{
+		id:         uuid.NewString(),
+		server:     s,
+		logger:     game.Log,
+		conn:       conn,
+		severities: getDebugSeverities(r),
+	}
+
+	socket.logger.addDebugSocket(socket)
+
+	go socket.handleConnection()
+}
+
+func (s *Server) debugPlayer(w http.ResponseWriter, r *http.Request) {
+	gameId := chi.URLParam(r, "gameId")
+	game, ok := s.getGame(gameId)
+	if !ok {
+		send(w, http.StatusNotFound, "game not found")
+		return
+	}
+
+	playerId := chi.URLParam(r, "playerId")
+	playerSecret := r.URL.Query().Get("player_secret")
+
+	player, ok := game.GetPlayer(playerId)
+	if !ok {
+		send(w, http.StatusNotFound, "player not found")
+		return
+	}
+
+	if player.Secret != playerSecret {
+		send(w, http.StatusForbidden, "wrong player secret")
+		return
+	}
+
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
+		return
+	}
+
+	socket := &debugSocket{
+		id:         uuid.NewString(),
+		server:     s,
+		logger:     player.Log,
+		conn:       conn,
+		severities: getDebugSeverities(r),
+	}
+
+	socket.logger.addDebugSocket(socket)
+
+	go socket.handleConnection()
+}
+
+func getDebugSeverities(r *http.Request) map[DebugSeverity]bool {
+	var err error
+	severities := make(map[DebugSeverity]bool)
+
+	severities[DebugTrace], err = strconv.ParseBool(r.URL.Query().Get("trace"))
+	if err != nil {
+		severities[DebugTrace] = true
+	}
+
+	severities[DebugInfo], err = strconv.ParseBool(r.URL.Query().Get("info"))
+	if err != nil {
+		severities[DebugInfo] = true
+	}
+
+	severities[DebugWarning], err = strconv.ParseBool(r.URL.Query().Get("warning"))
+	if err != nil {
+		severities[DebugWarning] = true
+	}
+
+	severities[DebugError], err = strconv.ParseBool(r.URL.Query().Get("error"))
+	if err != nil {
+		severities[DebugError] = true
+	}
+
+	return severities
 }
 
 func sendJSON(w http.ResponseWriter, status int, data any) {

@@ -1,11 +1,11 @@
 package cg
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
 
-	"github.com/Bananenpro/log"
 	"github.com/google/uuid"
 )
 
@@ -14,8 +14,10 @@ type Game struct {
 
 	OnPlayerJoined          func(player *Player)
 	OnPlayerLeft            func(player *Player)
-	OnPlayerSocketConnected func(player *Player, socket *Socket)
-	OnSpectatorConnected    func(socket *Socket)
+	OnPlayerSocketConnected func(player *Player, socket *GameSocket)
+	OnSpectatorConnected    func(socket *GameSocket)
+
+	Log *Logger
 
 	cmdChan chan CommandWrapper
 
@@ -25,7 +27,7 @@ type Game struct {
 	players     map[string]*Player
 
 	spectatorsLock sync.RWMutex
-	spectators     map[string]*Socket
+	spectators     map[string]*GameSocket
 
 	server *Server
 
@@ -42,10 +44,11 @@ type EventWrapper struct {
 func newGame(server *Server, id string, public bool) *Game {
 	return &Game{
 		Id:         id,
+		Log:        NewLogger(false),
 		cmdChan:    make(chan CommandWrapper, 10),
 		public:     public,
 		players:    make(map[string]*Player),
-		spectators: make(map[string]*Socket),
+		spectators: make(map[string]*GameSocket),
 		server:     server,
 		running:    true,
 	}
@@ -53,10 +56,25 @@ func newGame(server *Server, id string, public bool) *Game {
 
 // Send sends the event to all players currently in the game.
 func (g *Game) Send(event EventName, data any) error {
+	e := Event{
+		Name: event,
+	}
+	err := e.marshalData(data)
+	if err != nil {
+		return err
+	}
+
+	jsonData, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	g.Log.TraceData(e, "Broadcasting '%s' event to all players...", e.Name)
+
 	g.playersLock.RLock()
 	defer g.playersLock.RUnlock()
 	for _, p := range g.players {
-		err := p.Send(event, data)
+		err := p.sendEncoded(jsonData)
 		if err != nil {
 			return err
 		}
@@ -65,7 +83,7 @@ func (g *Game) Send(event EventName, data any) error {
 	g.spectatorsLock.RLock()
 	defer g.spectatorsLock.RUnlock()
 	for _, s := range g.spectators {
-		err := s.Send(event, data)
+		err := s.send(jsonData)
 		if err != nil {
 			return err
 		}
@@ -120,13 +138,15 @@ func (g *Game) Close() error {
 	for _, p := range g.players {
 		err := g.leave(p)
 		if err != nil {
-			log.Errorf("Couldn't disconnect player '%s' from game '%s': %s", p.Id, g.Id, err)
+			g.Log.Error("Couldn't disconnect player '%s': %s", p.Id, err)
 		}
 	}
 
 	close(g.cmdChan)
 
-	log.Tracef("Removed game %s.", g.Id)
+	g.server.log.Info("Removed game %s.", g.Id)
+
+	g.Log.Close()
 
 	return nil
 }
@@ -148,8 +168,9 @@ func (g *Game) join(username string) (string, string, error) {
 		Id:           playerId,
 		Username:     username,
 		Secret:       generatePlayerSecret(),
+		Log:          NewLogger(false),
 		server:       g.server,
-		sockets:      make(map[string]*Socket),
+		sockets:      make(map[string]*GameSocket),
 		game:         g,
 		missedEvents: make([][]byte, 0),
 	}
@@ -158,7 +179,7 @@ func (g *Game) join(username string) (string, string, error) {
 	g.players[playerId] = player
 	g.playersLock.Unlock()
 
-	log.Tracef("Player %s joined game %s with username '%s'.", player.Id, player.game.Id, player.Username)
+	g.Log.Info("Player '%s' (%s) joined the game.", player.Username, player.Id)
 
 	if g.OnPlayerJoined != nil {
 		g.OnPlayerJoined(player)
@@ -183,7 +204,7 @@ func (g *Game) leave(player *Player) error {
 		player.disconnectSocket(socket.Id)
 	}
 
-	log.Tracef("Player %s (%s) left the game %s", player.Id, player.Username, player.game.Id)
+	g.Log.Info("Player '%s' (%s) left the game %s", player.Id, player.Username, player.game.Id)
 
 	if playerCount == 0 {
 		g.markedAsEmpty = time.Now()
@@ -202,7 +223,7 @@ func (g *Game) playerUsernameMap() map[string]string {
 	return usernameMap
 }
 
-func (g *Game) addSpectator(socket *Socket) error {
+func (g *Game) addSpectator(socket *GameSocket) error {
 	g.spectatorsLock.Lock()
 	if g.server.config.MaxSpectatorsPerGame > 0 && len(g.spectators) >= g.server.config.MaxSpectatorsPerGame {
 		g.spectatorsLock.Unlock()

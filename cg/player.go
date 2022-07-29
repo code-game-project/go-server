@@ -13,11 +13,13 @@ type Player struct {
 	Username string
 	Secret   string
 
+	Log *Logger
+
 	game   *Game
 	server *Server
 
 	socketsLock    sync.RWMutex
-	sockets        map[string]*Socket
+	sockets        map[string]*GameSocket
 	socketCount    int
 	lastConnection time.Time
 
@@ -42,10 +44,17 @@ func (p *Player) Send(event EventName, data any) error {
 		return err
 	}
 
+	p.Log.TraceData(e, "Sending '%s' event...", e.Name)
+
+	p.sendEncoded(jsonData)
+	return nil
+}
+
+func (p *Player) sendEncoded(data []byte) error {
 	p.socketsLock.RLock()
 	defer p.socketsLock.RUnlock()
 	for _, socket := range p.sockets {
-		err := socket.send(jsonData)
+		err := socket.send(data)
 		if err != nil {
 			return err
 		}
@@ -53,7 +62,7 @@ func (p *Player) Send(event EventName, data any) error {
 
 	if len(p.sockets) == 0 {
 		p.missedEventsLock.Lock()
-		p.missedEvents = append(p.missedEvents, jsonData)
+		p.missedEvents = append(p.missedEvents, data)
 		p.missedEventsLock.Unlock()
 	}
 
@@ -62,6 +71,7 @@ func (p *Player) Send(event EventName, data any) error {
 
 // Leave leaves the game.
 func (p *Player) Leave() error {
+	defer p.Log.Close()
 	return p.game.leave(p)
 }
 
@@ -83,7 +93,7 @@ func (p *Player) handleCommand(cmd Command) error {
 	return nil
 }
 
-func (p *Player) addSocket(socket *Socket) error {
+func (p *Player) addSocket(socket *GameSocket) error {
 	if p.server.config.MaxSocketsPerPlayer > 0 && p.SocketCount() >= p.server.config.MaxSocketsPerPlayer {
 		return errors.New("max socket count reached for this player")
 	}

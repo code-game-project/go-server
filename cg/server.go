@@ -25,6 +25,8 @@ type Server struct {
 	upgrader websocket.Upgrader
 	config   ServerConfig
 
+	log *Logger
+
 	killTicker *time.Ticker
 
 	runGameFunc func(game *Game)
@@ -78,6 +80,7 @@ func NewServer(name string, config ServerConfig) *Server {
 		},
 
 		config: config,
+		log:    NewLogger(true),
 	}
 
 	if server.config.Port == 0 {
@@ -91,10 +94,10 @@ func NewServer(name string, config ServerConfig) *Server {
 	if server.config.WebRoot != "" {
 		stat, err := os.Stat(server.config.WebRoot)
 		if err != nil {
-			log.Warnf("Web root '%s' does not exist.", server.config.WebRoot)
+			log.Errorf("Web root '%s' does not exist.", server.config.WebRoot)
 			server.config.WebRoot = ""
 		} else if !stat.IsDir() {
-			log.Warnf("Web root '%s' is not a directory.", server.config.WebRoot)
+			log.Errorf("Web root '%s' is not a directory.", server.config.WebRoot)
 			server.config.WebRoot = ""
 		}
 	}
@@ -157,7 +160,11 @@ func (s *Server) createGame(public bool) (string, error) {
 		game.Close()
 	}()
 
-	log.Tracef("Created game %s.", id)
+	if public {
+		s.log.Info("Created public game %s.", id)
+	} else {
+		s.log.Info("Created private game %s-****-****-****-************.", id[:8])
+	}
 
 	return id, nil
 }

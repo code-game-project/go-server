@@ -5,11 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Bananenpro/log"
 	"github.com/gorilla/websocket"
 )
 
-type Socket struct {
+type GameSocket struct {
 	Id           string
 	server       *Server
 	player       *Player
@@ -24,25 +23,7 @@ var (
 	ErrDecodeFailed       = errors.New("failed to decode event")
 )
 
-// Send sends the event to the socket.
-func (s *Socket) Send(event EventName, data any) error {
-	e := Event{
-		Name: event,
-	}
-	err := e.marshalData(data)
-	if err != nil {
-		return err
-	}
-
-	jsonData, err := json.Marshal(e)
-	if err != nil {
-		return err
-	}
-
-	return s.send(jsonData)
-}
-
-func (s *Socket) handleConnection() {
+func (s *GameSocket) handleConnection() {
 	s.done = make(chan struct{})
 
 	s.conn.SetReadDeadline(time.Now().Add(s.server.config.WebsocketTimeout))
@@ -57,29 +38,23 @@ func (s *Socket) handleConnection() {
 		cmd, err := s.receiveCommand()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Tracef("Socket %s disconnected.", s.Id)
+				s.server.log.Trace("Socket %s disconnected.", s.Id)
 				break
 			} else if err == ErrDecodeFailed || err == ErrInvalidMessageType {
-				log.Tracef("Socket %s failed to decode command: %s", s.Id, err)
+				s.logger().Error("Socket %s failed to decode command: %s", s.Id, err)
 			} else {
-				log.Tracef("Socket %s disconnected unexpectedly: %s", s.Id, err)
+				s.logger().Warning("Socket %s disconnected unexpectedly: %s", s.Id, err)
 				break
 			}
 		}
 
 		if s.player != nil {
-			err = s.player.handleCommand(cmd)
-			if err != nil {
-				log.Tracef("Error while executing `%s` command: %s", cmd.Name, err)
-			}
+			s.player.handleCommand(cmd)
 		} else {
-			log.Tracef("Socket %s sent an unexpected command: %s", s.Id, cmd.Name)
-		}
-
-		if err != nil {
-			log.Tracef("Unexpected error in socket %s: %s", s.Id, err)
+			s.logger().Warning("Socket %s sent an unexpected command: %s", s.Id, cmd.Name)
 		}
 	}
+
 	if s.player != nil {
 		s.player.disconnectSocket(s.Id)
 	} else {
@@ -89,7 +64,7 @@ func (s *Socket) handleConnection() {
 	}
 }
 
-func (s *Socket) ping() {
+func (s *GameSocket) ping() {
 	ticker := time.NewTicker((s.server.config.WebsocketTimeout * 9) / 10)
 	defer ticker.Stop()
 	for {
@@ -102,13 +77,13 @@ func (s *Socket) ping() {
 	}
 }
 
-func (s *Socket) disconnect() {
+func (s *GameSocket) disconnect() {
 	close(s.done)
 	s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "disconnect"), time.Now().Add(5*time.Second))
 	s.conn.Close()
 }
 
-func (s *Socket) receiveCommand() (Command, error) {
+func (s *GameSocket) receiveCommand() (Command, error) {
 	msgType, msg, err := s.conn.ReadMessage()
 	if err != nil {
 		return Command{}, err
@@ -117,8 +92,6 @@ func (s *Socket) receiveCommand() (Command, error) {
 		return Command{}, ErrInvalidMessageType
 	}
 
-	log.Tracef("Received '%s' from %s.", string(msg), s.Id)
-
 	var cmd Command
 	err = json.Unmarshal(msg, &cmd)
 
@@ -126,11 +99,22 @@ func (s *Socket) receiveCommand() (Command, error) {
 		return Command{}, ErrDecodeFailed
 	}
 
+	s.logger().TraceData(cmd, "Received '%s' command from socket %s.", cmd.Name, s.Id)
+
 	return cmd, nil
 }
 
-func (s *Socket) send(message []byte) error {
-	log.Tracef("Sending '%s' to %s...", string(message), s.Id)
+func (s *GameSocket) send(message []byte) error {
 	s.conn.SetWriteDeadline(time.Now().Add(s.server.config.WebsocketTimeout))
 	return s.conn.WriteMessage(websocket.TextMessage, message)
+}
+
+func (s *GameSocket) logger() *Logger {
+	if s.player != nil {
+		return s.player.Log
+	} else if s.spectateGame != nil {
+		return s.spectateGame.Log
+	} else {
+		return s.server.log
+	}
 }
