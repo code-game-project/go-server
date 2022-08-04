@@ -182,7 +182,7 @@ func (s *Server) createPlayerEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	playerId, playerSecret, err := game.join(req.Username)
 	if err != nil {
-		send(w, http.StatusInternalServerError, err.Error())
+		send(w, http.StatusForbidden, err.Error())
 		return
 	}
 
