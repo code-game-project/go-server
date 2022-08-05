@@ -142,17 +142,21 @@ func (s *Server) Run(runGameFunc func(game *Game, config json.RawMessage)) {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), handler))
 }
 
-func (s *Server) createGame(public bool, config json.RawMessage) (string, error) {
+func (s *Server) createGame(public, protected bool, config json.RawMessage) (string, string, error) {
 	s.gamesLock.Lock()
 	defer s.gamesLock.Unlock()
 
 	if s.config.MaxGames > 0 && len(s.games) >= s.config.MaxGames {
-		return "", errors.New("max game count reached")
+		return "", "", errors.New("max game count reached")
 	}
 
 	id := uuid.NewString()
 
 	game := newGame(s, id, public)
+
+	if protected {
+		game.joinSecret = generateSecret()
+	}
 
 	s.games[id] = game
 
@@ -167,7 +171,7 @@ func (s *Server) createGame(public bool, config json.RawMessage) (string, error)
 		s.log.Info("Created private game %s-****-****-****-************.", id[:8])
 	}
 
-	return id, nil
+	return id, game.joinSecret, nil
 }
 
 func (s *Server) removeGame(game *Game) {
@@ -203,7 +207,7 @@ func (s *Server) getGame(gameId string) (*Game, bool) {
 	return game, ok
 }
 
-func generatePlayerSecret() string {
+func generateSecret() string {
 	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	ret := make([]byte, 64)
 	for i := 0; i < 64; i++ {

@@ -107,27 +107,30 @@ func (s *Server) createGameEndpoint(w http.ResponseWriter, r *http.Request) {
 	defer body.Close()
 
 	type request struct {
-		Public *bool           `json:"public"`
-		Config json.RawMessage `json:"config"`
+		Public    bool            `json:"public"`
+		Protected bool            `json:"protected"`
+		Config    json.RawMessage `json:"config"`
 	}
 	var req request
 	err := json.NewDecoder(body).Decode(&req)
-	if err != nil || req.Public == nil {
+	if err != nil {
 		send(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	gameId, err := s.createGame(*req.Public, req.Config)
+	gameId, joinSecret, err := s.createGame(req.Public, req.Protected, req.Config)
 	if err != nil {
 		send(w, http.StatusForbidden, "max game count reached")
 		return
 	}
 
 	type response struct {
-		GameId string `json:"game_id"`
+		GameId     string `json:"game_id"`
+		JoinSecret string `json:"join_secret,omitempty"`
 	}
 	sendJSON(w, http.StatusCreated, response{
-		GameId: gameId,
+		GameId:     gameId,
+		JoinSecret: joinSecret,
 	})
 }
 
@@ -165,7 +168,8 @@ func (s *Server) createPlayerEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 	defer body.Close()
 	type request struct {
-		Username string `json:"username"`
+		Username   string `json:"username"`
+		JoinSecret string `json:"join_secret"`
 	}
 	var req request
 	err := json.NewDecoder(body).Decode(&req)
@@ -180,7 +184,7 @@ func (s *Server) createPlayerEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	playerId, playerSecret, err := game.join(req.Username)
+	playerId, playerSecret, err := game.join(req.Username, req.JoinSecret)
 	if err != nil {
 		send(w, http.StatusForbidden, err.Error())
 		return

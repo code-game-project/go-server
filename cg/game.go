@@ -21,7 +21,8 @@ type Game struct {
 
 	cmdChan chan CommandWrapper
 
-	public bool
+	public     bool
+	joinSecret string
 
 	playersLock sync.RWMutex
 	players     map[string]*Player
@@ -151,7 +152,11 @@ func (g *Game) Close() error {
 	return nil
 }
 
-func (g *Game) join(username string) (string, string, error) {
+func (g *Game) join(username, joinSecret string) (string, string, error) {
+	if g.joinSecret != "" && g.joinSecret != joinSecret {
+		return "", "", errors.New("wrong join secret")
+	}
+
 	if g.server.config.MaxPlayersPerGame > 0 {
 		g.playersLock.RLock()
 		playerCount := len(g.players)
@@ -167,7 +172,7 @@ func (g *Game) join(username string) (string, string, error) {
 	player := &Player{
 		Id:           playerId,
 		Username:     username,
-		Secret:       generatePlayerSecret(),
+		Secret:       generateSecret(),
 		Log:          NewLogger(false),
 		server:       g.server,
 		sockets:      make(map[string]*GameSocket),
