@@ -226,6 +226,16 @@ func (g *Game) leave(player *Player) error {
 	return nil
 }
 
+func (g *Game) playerUsernameMap() map[string]string {
+	g.playersLock.RLock()
+	usernameMap := make(map[string]string, len(g.players))
+	for id, player := range g.players {
+		usernameMap[id] = player.Username
+	}
+	g.playersLock.RUnlock()
+	return usernameMap
+}
+
 func (g *Game) addSpectator(socket *GameSocket) error {
 	g.spectatorsLock.Lock()
 	if g.server.config.MaxSpectatorsPerGame > 0 && len(g.spectators) >= g.server.config.MaxSpectatorsPerGame {

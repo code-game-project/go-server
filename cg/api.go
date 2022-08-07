@@ -166,19 +166,9 @@ func (s *Server) playersEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	players := make(map[string]string)
-	game.playersLock.RLock()
-	for id, p := range game.players {
-		players[id] = p.Username
-	}
-	game.playersLock.RUnlock()
+	players := game.playerUsernameMap()
 
-	type response struct {
-		Players map[string]string `json:"players"`
-	}
-	sendJSON(w, http.StatusOK, response{
-		Players: players,
-	})
+	sendJSON(w, http.StatusOK, players)
 }
 
 func (s *Server) createPlayerEndpoint(w http.ResponseWriter, r *http.Request) {
