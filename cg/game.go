@@ -19,6 +19,8 @@ type Game struct {
 
 	Log *Logger
 
+	config any
+
 	cmdChan chan CommandWrapper
 
 	public     bool
@@ -53,6 +55,12 @@ func newGame(server *Server, id string, public bool) *Game {
 		server:     server,
 		running:    true,
 	}
+}
+
+// Set game config data. This should be a struct of type GameConfig.
+// It is required to call this function in order for some API endpoints to work.
+func (g *Game) SetConfig(config any) {
+	g.config = config
 }
 
 // Send sends the event to all players currently in the game.
@@ -218,16 +226,6 @@ func (g *Game) leave(player *Player) error {
 	return nil
 }
 
-func (g *Game) playerUsernameMap() map[string]string {
-	g.playersLock.RLock()
-	usernameMap := make(map[string]string, len(g.players))
-	for id, player := range g.players {
-		usernameMap[id] = player.Username
-	}
-	g.playersLock.RUnlock()
-	return usernameMap
-}
-
 func (g *Game) addSpectator(socket *GameSocket) error {
 	g.spectatorsLock.Lock()
 	if g.server.config.MaxSpectatorsPerGame > 0 && len(g.spectators) >= g.server.config.MaxSpectatorsPerGame {
@@ -257,7 +255,7 @@ func (g *Game) kickInactivePlayers() {
 		g.playersLock.RLock()
 		for _, p := range g.players {
 			p.socketsLock.RLock()
-			if p.socketCount == 0 && time.Now().Sub(p.lastConnection) >= g.server.config.KickInactivePlayerDelay {
+			if p.socketCount == 0 && time.Since(p.lastConnection) >= g.server.config.KickInactivePlayerDelay {
 				g.playersLock.RUnlock()
 				p.socketsLock.RUnlock()
 				g.leave(p)

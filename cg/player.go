@@ -84,7 +84,7 @@ func (p *Player) SocketCount() int {
 
 func (p *Player) handleCommand(cmd Command) error {
 	if p.game == nil {
-		return errors.New(fmt.Sprintf("unexpected command: %s", cmd.Name))
+		return fmt.Errorf("unexpected command: %s", cmd.Name)
 	}
 	p.game.cmdChan <- CommandWrapper{
 		Origin: p,

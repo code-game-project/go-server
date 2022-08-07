@@ -16,6 +16,7 @@ func (s *Server) apiRoutes(r chi.Router) {
 	r.Get("/events", s.eventsEndpoint)
 	r.Get("/games", s.gamesEndpoint)
 	r.Post("/games", s.createGameEndpoint)
+	r.Get("/games/{gameId}", s.gameEndpoint)
 	r.Get("/games/{gameId}/players", s.playersEndpoint)
 	r.Post("/games/{gameId}/players", s.createPlayerEndpoint)
 	r.Get("/games/{gameId}/players/{playerId}", s.playerEndpoint)
@@ -131,6 +132,28 @@ func (s *Server) createGameEndpoint(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, http.StatusCreated, response{
 		GameId:     gameId,
 		JoinSecret: joinSecret,
+	})
+}
+
+func (s *Server) gameEndpoint(w http.ResponseWriter, r *http.Request) {
+	gameId := chi.URLParam(r, "gameId")
+
+	game, ok := s.getGame(gameId)
+	if !ok {
+		send(w, http.StatusNotFound, "game not found")
+		return
+	}
+
+	type response struct {
+		Id      string `json:"id"`
+		Players int    `json:"players"`
+		Config  any    `json:"config,omitempty"`
+	}
+
+	sendJSON(w, http.StatusOK, response{
+		Id:      game.Id,
+		Players: len(game.players),
+		Config:  game.config,
 	})
 }
 
