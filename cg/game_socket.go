@@ -39,7 +39,7 @@ func (s *GameSocket) Send(event EventName, data any) error {
 	}
 
 	if s.player != nil {
-		s.player.Log.TraceData(e, "Sending '%s' event...", e.Name)
+		s.player.Log.TraceData(e, "Sending '%s' event to socket %s...", e.Name, s.Id)
 	}
 
 	s.send(jsonData)
