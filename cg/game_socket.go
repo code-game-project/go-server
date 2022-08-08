@@ -23,6 +23,29 @@ var (
 	ErrDecodeFailed       = errors.New("failed to decode event")
 )
 
+// Send sends the event the socket.
+func (s *GameSocket) Send(event EventName, data any) error {
+	e := Event{
+		Name: event,
+	}
+	err := e.marshalData(data)
+	if err != nil {
+		return err
+	}
+
+	jsonData, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	if s.player != nil {
+		s.player.Log.TraceData(e, "Sending '%s' event...", e.Name)
+	}
+
+	s.send(jsonData)
+	return nil
+}
+
 func (s *GameSocket) handleConnection() {
 	s.done = make(chan struct{})
 
