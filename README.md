@@ -71,6 +71,7 @@ func (g *Game) Run() {
 func main() {
 	server := cg.NewServer("my_game", cg.ServerConfig{
 		Port:                    8080,
+		MaxPlayersPerGame:       20,
 		DeleteInactiveGameDelay: 15 * time.Minute,
 		KickInactivePlayerDelay: 15 * time.Minute,
 		CGEFilepath:             "my_game.cge",
@@ -78,13 +79,13 @@ func main() {
 		DisplayName:             "My Game",
 		Version:                 "1.2.3",
 		Description:             "This is my game.",
-		RepositoryURL:           "https://example.com",
+		RepositoryURL:           "https://example.com/my-game",
 	})
 
 	server.Run(func(cgGame *cg.Game, config json.RawMessage) {
-		game := Game{
-			cg: cgGame,
-		}
+		var gameConfig struct{} // should be GameConfig from cg-gen-events.
+		err := json.Unmarshal(config, &gameConfig)
+		cgGame.SetConfig(gameConfig)
 
 		// Register callbacks.
 		cgGame.OnPlayerJoined = game.OnPlayerJoined
@@ -92,6 +93,9 @@ func main() {
 		cgGame.OnPlayerSocketConnected = game.OnPlayerSocketConnected
 		cgGame.OnSpectatorConnected = game.OnSpectatorConnected
 
+		game := Game {
+			cg: cgGame,
+		}
 		// Run the game loop.
 		game.Run()
 	})
