@@ -288,6 +288,10 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 	s.log.Trace("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
 
 	go socket.handleConnection()
+
+	if game.OnPlayerSocketConnected != nil {
+		game.OnPlayerSocketConnected(player, socket)
+	}
 }
 
 func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
