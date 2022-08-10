@@ -2,7 +2,7 @@
 ![CodeGame Version](https://img.shields.io/badge/CodeGame-v0.7-orange)
 ![Go version](https://img.shields.io/github/go-mod/go-version/code-game-project/go-server)
 
-This is the Go server library for [CodeGame](https://code-game.org).
+The Go server library for [CodeGame](https://code-game.org).
 
 ## Installation
 
