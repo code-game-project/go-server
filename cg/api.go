@@ -70,21 +70,28 @@ func (s *Server) eventsEndpoint(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) gamesEndpoint(w http.ResponseWriter, r *http.Request) {
 	type game struct {
-		Id      string `json:"id"`
-		Players int    `json:"players"`
+		Id        string `json:"id"`
+		Players   int    `json:"players"`
+		Protected bool   `json:"protected"`
 	}
+
+	protectedParam := r.URL.Query().Get("protected")
+	protected, _ := strconv.ParseBool(protectedParam)
 
 	s.gamesLock.RLock()
 	publicGames := make([]game, 0, len(s.games)/2)
 	private := 0
 	for _, g := range s.games {
-		if g.public {
-			publicGames = append(publicGames, game{
-				Id:      g.Id,
-				Players: len(g.players),
-			})
-		} else {
-			private++
+		if protectedParam == "" || protected == (g.joinSecret != "") {
+			if g.public {
+				publicGames = append(publicGames, game{
+					Id:        g.Id,
+					Players:   len(g.players),
+					Protected: g.joinSecret != "",
+				})
+			} else {
+				private++
+			}
 		}
 	}
 	s.gamesLock.RUnlock()
@@ -145,15 +152,17 @@ func (s *Server) gameEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type response struct {
-		Id      string `json:"id"`
-		Players int    `json:"players"`
-		Config  any    `json:"config,omitempty"`
+		Id        string `json:"id"`
+		Players   int    `json:"players"`
+		Protected bool   `json:"protected"`
+		Config    any    `json:"config,omitempty"`
 	}
 
 	sendJSON(w, http.StatusOK, response{
-		Id:      game.Id,
-		Players: len(game.players),
-		Config:  game.config,
+		Id:        game.Id,
+		Players:   len(game.players),
+		Protected: game.joinSecret != "",
+		Config:    game.config,
 	})
 }
 
