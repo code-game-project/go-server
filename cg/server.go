@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,7 +122,47 @@ func NewServer(name string, config ServerConfig) *Server {
 		}()
 	}
 
+	if server.config.Version == "" {
+		log.Warn("No game version specified.")
+	} else {
+		server.config.Version = strings.TrimPrefix(server.config.Version, "v")
+		if _, _, _, err := parseVersion(server.config.Version); err != nil {
+			log.Error("Invalid game version:", err)
+			server.config.Version = ""
+		}
+	}
+
 	return server
+}
+
+func parseVersion(version string) (int, int, int, error) {
+	parts := strings.Split(version, ".")
+
+	var major, minor, patch int
+	var err error
+
+	if len(parts) >= 1 {
+		major, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("major version not a number: %s", version)
+		}
+	}
+
+	if len(parts) >= 2 {
+		minor, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("minor version not a number: %s", version)
+		}
+	}
+
+	if len(parts) >= 3 {
+		patch, err = strconv.Atoi(parts[2])
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("patch version not a number: %s", version)
+		}
+	}
+
+	return major, minor, patch, nil
 }
 
 // Run starts the webserver and listens for new connections.
