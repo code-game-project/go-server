@@ -249,9 +249,9 @@ func (s *Server) playerEndpoint(w http.ResponseWriter, r *http.Request) {
 func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 	gameId := chi.URLParam(r, "gameId")
 	playerId := chi.URLParam(r, "playerId")
-	playerSecret := r.Header.Get("Player-Secret")
+	playerSecret := r.Header.Get("CG-Player-Secret")
 	if playerSecret == "" {
-		send(w, http.StatusBadRequest, "missing `Player-Secret` header")
+		send(w, http.StatusBadRequest, "missing `CG-Player-Secret` header")
 		return
 	}
 
@@ -380,9 +380,9 @@ func (s *Server) debugGame(w http.ResponseWriter, r *http.Request) {
 func (s *Server) debugPlayer(w http.ResponseWriter, r *http.Request) {
 	gameId := chi.URLParam(r, "gameId")
 	playerId := chi.URLParam(r, "playerId")
-	playerSecret := r.Header.Get("Player-Secret")
+	playerSecret := r.Header.Get("CG-Player-Secret")
 	if playerSecret == "" {
-		send(w, http.StatusBadRequest, "missing `Player-Secret` header")
+		send(w, http.StatusBadRequest, "missing `CG-Player-Secret` header")
 		return
 	}
 
