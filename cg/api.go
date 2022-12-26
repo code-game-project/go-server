@@ -20,7 +20,7 @@ func (s *Server) apiRoutes(r chi.Router) {
 	r.Get("/games/{gameId}/players", s.playersEndpoint)
 	r.Post("/games/{gameId}/players", s.createPlayerEndpoint)
 	r.Get("/games/{gameId}/players/{playerId}", s.playerEndpoint)
-	r.Get("/games/{gameId}/connect", s.connectEndpoint)
+	r.Get("/games/{gameId}/players/{playerId}/connect", s.connectEndpoint)
 	r.Get("/games/{gameId}/spectate", s.spectateEndpoint)
 
 	r.Get("/debug", s.debugServer)
@@ -248,14 +248,10 @@ func (s *Server) playerEndpoint(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 	gameId := chi.URLParam(r, "gameId")
-	playerId := r.URL.Query().Get("player_id")
-	if playerId == "" {
-		send(w, http.StatusBadRequest, "missing `player_id` query parameter")
-		return
-	}
-	playerSecret := r.URL.Query().Get("player_secret")
+	playerId := chi.URLParam(r, "playerId")
+	playerSecret := r.Header.Get("Player-Secret")
 	if playerSecret == "" {
-		send(w, http.StatusBadRequest, "missing `player_secret` query parameter")
+		send(w, http.StatusBadRequest, "missing `Player-Secret` header")
 		return
 	}
 
@@ -383,14 +379,18 @@ func (s *Server) debugGame(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) debugPlayer(w http.ResponseWriter, r *http.Request) {
 	gameId := chi.URLParam(r, "gameId")
+	playerId := chi.URLParam(r, "playerId")
+	playerSecret := r.Header.Get("Player-Secret")
+	if playerSecret == "" {
+		send(w, http.StatusBadRequest, "missing `Player-Secret` header")
+		return
+	}
+
 	game, ok := s.getGame(gameId)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
 	}
-
-	playerId := chi.URLParam(r, "playerId")
-	playerSecret := r.URL.Query().Get("player_secret")
 
 	player, ok := game.GetPlayer(playerId)
 	if !ok {
