@@ -66,7 +66,7 @@ func (s *GameSocket) handleConnection() {
 			} else if err == ErrDecodeFailed || err == ErrInvalidMessageType {
 				s.logger().Error("Socket %s failed to decode command: %s", s.Id, err)
 			} else {
-				s.logger().Warning("Socket %s disconnected unexpectedly: %s", s.Id, err)
+				s.logger().Trace("Socket %s disconnected unexpectedly: %s", s.Id, err)
 				break
 			}
 		}

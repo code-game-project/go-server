@@ -274,7 +274,6 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
 		return
 	}
 
@@ -290,7 +289,7 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.log.Trace("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
+	player.Log.Trace("New socket connected with id %s.", socket.Id)
 
 	go socket.handleConnection()
 
@@ -310,7 +309,6 @@ func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
 		return
 	}
 
@@ -325,7 +323,7 @@ func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
 		send(w, http.StatusForbidden, err.Error())
 	}
 
-	s.log.Trace("Socket %s connected with id %s.", socket.conn.RemoteAddr(), socket.Id)
+	game.Log.Trace("New spectator socket connected with id %s.", socket.Id)
 
 	go socket.handleConnection()
 }
@@ -333,7 +331,6 @@ func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
 func (s *Server) debugServer(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
 		return
 	}
 
@@ -360,7 +357,6 @@ func (s *Server) debugGame(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
 		return
 	}
 
@@ -405,7 +401,6 @@ func (s *Server) debugPlayer(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.log.Error("Failed to upgrade connection with %s: %s", r.RemoteAddr, err)
 		return
 	}
 
