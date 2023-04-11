@@ -9,7 +9,7 @@ import (
 )
 
 type GameSocket struct {
-	Id           string
+	ID           string
 	server       *Server
 	player       *Player
 	spectateGame *Game
@@ -39,7 +39,7 @@ func (s *GameSocket) Send(event EventName, data any) error {
 	}
 
 	if s.player != nil {
-		s.player.Log.TraceData(e, "Sending '%s' event to socket %s...", e.Name, s.Id)
+		s.player.Log.TraceData(e, "Sending '%s' event to socket %s...", e.Name, s.ID)
 	}
 
 	s.send(jsonData)
@@ -61,12 +61,12 @@ func (s *GameSocket) handleConnection() {
 		cmd, err := s.receiveCommand()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				s.server.log.Trace("Socket %s disconnected.", s.Id)
+				s.server.log.Trace("Socket %s disconnected.", s.ID)
 				break
 			} else if err == ErrDecodeFailed || err == ErrInvalidMessageType {
-				s.logger().Error("Socket %s failed to decode command: %s", s.Id, err)
+				s.logger().Error("Socket %s failed to decode command: %s", s.ID, err)
 			} else {
-				s.logger().Trace("Socket %s disconnected unexpectedly: %s", s.Id, err)
+				s.logger().Trace("Socket %s disconnected unexpectedly: %s", s.ID, err)
 				break
 			}
 		}
@@ -74,15 +74,15 @@ func (s *GameSocket) handleConnection() {
 		if s.player != nil {
 			s.player.handleCommand(cmd)
 		} else {
-			s.logger().Warning("Socket %s sent an unexpected command: %s", s.Id, cmd.Name)
+			s.logger().Warning("Socket %s sent an unexpected command: %s", s.ID, cmd.Name)
 		}
 	}
 
 	if s.player != nil {
-		s.player.disconnectSocket(s.Id)
+		s.player.disconnectSocket(s.ID)
 	} else {
 		if s.spectateGame != nil {
-			s.spectateGame.removeSpectator(s.Id)
+			s.spectateGame.removeSpectator(s.ID)
 		}
 	}
 }
@@ -122,7 +122,7 @@ func (s *GameSocket) receiveCommand() (Command, error) {
 		return Command{}, ErrDecodeFailed
 	}
 
-	s.logger().TraceData(cmd, "Received '%s' command from socket %s.", cmd.Name, s.Id)
+	s.logger().TraceData(cmd, "Received '%s' command from socket %s.", cmd.Name, s.ID)
 
 	return cmd, nil
 }

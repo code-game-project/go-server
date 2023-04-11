@@ -218,7 +218,7 @@ func (s *Server) createGame(public, protected bool, config json.RawMessage) (str
 
 func (s *Server) removeGame(game *Game) {
 	s.gamesLock.Lock()
-	delete(s.games, game.Id)
+	delete(s.games, game.ID)
 	s.gamesLock.Unlock()
 }
 
@@ -232,7 +232,7 @@ func (s *Server) removeInactiveGamesPlayers() {
 			g.playersLock.RUnlock()
 
 			if playerCount == 0 {
-				if g.markedAsEmpty == (time.Time{}) {
+				if g.markedAsEmpty.Equal(time.Time{}) {
 					g.markedAsEmpty = time.Now()
 				} else if time.Now().After(g.markedAsEmpty.Add(s.config.DeleteInactiveGameDelay)) {
 					g.Close()
@@ -242,9 +242,9 @@ func (s *Server) removeInactiveGamesPlayers() {
 	}
 }
 
-func (s *Server) getGame(gameId string) (*Game, bool) {
+func (s *Server) getGame(gameID string) (*Game, bool) {
 	s.gamesLock.RLock()
-	game, ok := s.games[gameId]
+	game, ok := s.games[gameID]
 	s.gamesLock.RUnlock()
 	return game, ok
 }

@@ -9,7 +9,7 @@ import (
 )
 
 type Player struct {
-	Id       string
+	ID       string
 	Username string
 	Secret   string
 
@@ -101,7 +101,7 @@ func (p *Player) addSocket(socket *GameSocket) error {
 	socket.player = p
 
 	p.socketsLock.Lock()
-	p.sockets[socket.Id] = socket
+	p.sockets[socket.ID] = socket
 	p.socketCount++
 	p.socketsLock.Unlock()
 

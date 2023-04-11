@@ -10,7 +10,7 @@ import (
 )
 
 type Game struct {
-	Id string
+	ID string
 
 	OnPlayerJoined          func(player *Player)
 	OnPlayerLeft            func(player *Player)
@@ -46,7 +46,7 @@ type EventWrapper struct {
 
 func newGame(server *Server, id string, public bool) *Game {
 	return &Game{
-		Id:         id,
+		ID:         id,
 		Log:        NewLogger(false),
 		cmdChan:    make(chan CommandWrapper, 10),
 		public:     public,
@@ -102,10 +102,10 @@ func (g *Game) Send(event EventName, data any) error {
 }
 
 // GetPlayer returns a player in the game by id.
-func (g *Game) GetPlayer(playerId string) (*Player, bool) {
+func (g *Game) GetPlayer(playerID string) (*Player, bool) {
 	g.playersLock.RLock()
 	defer g.playersLock.RUnlock()
-	player, ok := g.players[playerId]
+	player, ok := g.players[playerID]
 	return player, ok
 }
 
@@ -147,13 +147,13 @@ func (g *Game) Close() error {
 	for _, p := range g.players {
 		err := g.leave(p)
 		if err != nil {
-			g.Log.Error("Couldn't disconnect player '%s': %s", p.Id, err)
+			g.Log.Error("Couldn't disconnect player '%s': %s", p.ID, err)
 		}
 	}
 
 	close(g.cmdChan)
 
-	g.server.log.Info("Removed game %s.", g.Id)
+	g.server.log.Info("Removed game %s.", g.ID)
 
 	g.Log.Close()
 
@@ -176,9 +176,9 @@ func (g *Game) join(username, joinSecret string) (string, string, error) {
 
 	g.markedAsEmpty = time.Time{}
 
-	playerId := uuid.NewString()
+	playerID := uuid.NewString()
 	player := &Player{
-		Id:           playerId,
+		ID:           playerID,
 		Username:     username,
 		Secret:       generateSecret(),
 		Log:          NewLogger(false),
@@ -189,16 +189,16 @@ func (g *Game) join(username, joinSecret string) (string, string, error) {
 	}
 
 	g.playersLock.Lock()
-	g.players[playerId] = player
+	g.players[playerID] = player
 	g.playersLock.Unlock()
 
-	g.Log.Info("Player '%s' (%s) joined the game.", player.Username, player.Id)
+	g.Log.Info("Player '%s' (%s) joined the game.", player.Username, player.ID)
 
 	if g.OnPlayerJoined != nil {
 		g.OnPlayerJoined(player)
 	}
 
-	return player.Id, player.Secret, nil
+	return player.ID, player.Secret, nil
 }
 
 func (g *Game) leave(player *Player) error {
@@ -209,15 +209,15 @@ func (g *Game) leave(player *Player) error {
 	}
 
 	g.playersLock.Lock()
-	delete(g.players, player.Id)
+	delete(g.players, player.ID)
 	playerCount := len(g.players)
 	g.playersLock.Unlock()
 
 	for _, socket := range player.sockets {
-		player.disconnectSocket(socket.Id)
+		player.disconnectSocket(socket.ID)
 	}
 
-	g.Log.Info("Player '%s' (%s) left the game %s", player.Id, player.Username, player.game.Id)
+	g.Log.Info("Player '%s' (%s) left the game %s", player.ID, player.Username, player.game.ID)
 
 	if playerCount == 0 {
 		g.markedAsEmpty = time.Now()
@@ -244,7 +244,7 @@ func (g *Game) addSpectator(socket *GameSocket) error {
 	}
 
 	socket.spectateGame = g
-	g.spectators[socket.Id] = socket
+	g.spectators[socket.ID] = socket
 	g.spectatorsLock.Unlock()
 
 	if g.OnSpectatorConnected != nil {

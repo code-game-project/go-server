@@ -93,13 +93,13 @@ func (l *Logger) ErrorData(data any, format string, a ...any) {
 
 func (l *Logger) Log(severity DebugSeverity, data any, format string, a ...any) {
 	message := fmt.Sprintf(format, a...)
-	var dataJson json.RawMessage
+	var dataJSON json.RawMessage
 	if data != nil {
 		if d, ok := data.([]byte); ok {
-			dataJson = d
+			dataJSON = d
 		} else {
 			var err error
-			dataJson, err = json.Marshal(data)
+			dataJSON, err = json.Marshal(data)
 			if err != nil {
 				log.Errorf("Failed to encode debug message data: %s", err)
 				return
@@ -110,13 +110,13 @@ func (l *Logger) Log(severity DebugSeverity, data any, format string, a ...any) 
 	if l.printMessages {
 		switch severity {
 		case DebugTrace:
-			log.Tracef("%s : %s", message, dataJson)
+			log.Tracef("%s : %s", message, dataJSON)
 		case DebugInfo:
-			log.Infof("%s : %s", message, dataJson)
+			log.Infof("%s : %s", message, dataJSON)
 		case DebugWarning:
-			log.Warnf("%s : %s", message, dataJson)
+			log.Warnf("%s : %s", message, dataJSON)
 		case DebugError:
-			log.Errorf("%s : %s", message, dataJson)
+			log.Errorf("%s : %s", message, dataJSON)
 		}
 	}
 
@@ -124,7 +124,7 @@ func (l *Logger) Log(severity DebugSeverity, data any, format string, a ...any) 
 		l.queue <- debugMessage{
 			Severity: severity,
 			Message:  message,
-			Data:     dataJson,
+			Data:     dataJSON,
 		}
 	}
 }

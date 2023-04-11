@@ -70,7 +70,7 @@ func (s *Server) eventsEndpoint(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) gamesEndpoint(w http.ResponseWriter, r *http.Request) {
 	type game struct {
-		Id        string `json:"id"`
+		ID        string `json:"id"`
 		Players   int    `json:"players"`
 		Protected bool   `json:"protected"`
 	}
@@ -85,7 +85,7 @@ func (s *Server) gamesEndpoint(w http.ResponseWriter, r *http.Request) {
 		if protectedParam == "" || protected == (g.joinSecret != "") {
 			if g.public {
 				publicGames = append(publicGames, game{
-					Id:        g.Id,
+					ID:        g.ID,
 					Players:   len(g.players),
 					Protected: g.joinSecret != "",
 				})
@@ -126,40 +126,40 @@ func (s *Server) createGameEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gameId, joinSecret, err := s.createGame(req.Public, req.Protected, req.Config)
+	gameID, joinSecret, err := s.createGame(req.Public, req.Protected, req.Config)
 	if err != nil {
 		send(w, http.StatusForbidden, "max game count reached")
 		return
 	}
 
 	type response struct {
-		GameId     string `json:"game_id"`
+		GameID     string `json:"game_id"`
 		JoinSecret string `json:"join_secret,omitempty"`
 	}
 	sendJSON(w, http.StatusCreated, response{
-		GameId:     gameId,
+		GameID:     gameID,
 		JoinSecret: joinSecret,
 	})
 }
 
 func (s *Server) gameEndpoint(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
+	gameID := chi.URLParam(r, "gameId")
 
-	game, ok := s.getGame(gameId)
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
 	}
 
 	type response struct {
-		Id        string `json:"id"`
+		ID        string `json:"id"`
 		Players   int    `json:"players"`
 		Protected bool   `json:"protected"`
 		Config    any    `json:"config,omitempty"`
 	}
 
 	sendJSON(w, http.StatusOK, response{
-		Id:        game.Id,
+		ID:        game.ID,
 		Players:   len(game.players),
 		Protected: game.joinSecret != "",
 		Config:    game.config,
@@ -167,9 +167,9 @@ func (s *Server) gameEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) playersEndpoint(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
+	gameID := chi.URLParam(r, "gameId")
 
-	game, ok := s.getGame(gameId)
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
@@ -181,7 +181,7 @@ func (s *Server) playersEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createPlayerEndpoint(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
+	gameID := chi.URLParam(r, "gameId")
 
 	body := r.Body
 	if body == nil {
@@ -200,39 +200,39 @@ func (s *Server) createPlayerEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	game, ok := s.getGame(gameId)
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
 	}
 
-	playerId, playerSecret, err := game.join(req.Username, req.JoinSecret)
+	playerID, playerSecret, err := game.join(req.Username, req.JoinSecret)
 	if err != nil {
 		send(w, http.StatusForbidden, err.Error())
 		return
 	}
 
 	type response struct {
-		PlayerId     string `json:"player_id"`
+		PlayerID     string `json:"player_id"`
 		PlayerSecret string `json:"player_secret"`
 	}
 	sendJSON(w, http.StatusCreated, response{
-		PlayerId:     playerId,
+		PlayerID:     playerID,
 		PlayerSecret: playerSecret,
 	})
 }
 
 func (s *Server) playerEndpoint(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
-	playerId := chi.URLParam(r, "playerId")
+	gameID := chi.URLParam(r, "gameId")
+	playerID := chi.URLParam(r, "playerId")
 
-	game, ok := s.getGame(gameId)
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
 	}
 
-	player, ok := game.GetPlayer(playerId)
+	player, ok := game.GetPlayer(playerID)
 	if !ok {
 		send(w, http.StatusNotFound, "player not found")
 		return
@@ -247,21 +247,21 @@ func (s *Server) playerEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
-	playerId := chi.URLParam(r, "playerId")
+	gameID := chi.URLParam(r, "gameId")
+	playerID := chi.URLParam(r, "playerId")
 	playerSecret := r.URL.Query().Get("player_secret")
 	if playerSecret == "" {
 		send(w, http.StatusBadRequest, "missing `player_secret` query parameter")
 		return
 	}
 
-	game, ok := s.getGame(gameId)
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
 	}
 
-	player, ok := game.GetPlayer(playerId)
+	player, ok := game.GetPlayer(playerID)
 	if !ok {
 		send(w, http.StatusNotFound, "player not found")
 		return
@@ -278,7 +278,7 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	socket := &GameSocket{
-		Id:     uuid.NewString(),
+		ID:     uuid.NewString(),
 		server: s,
 		conn:   conn,
 	}
@@ -289,7 +289,7 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	player.Log.Trace("New socket connected with id %s.", socket.Id)
+	player.Log.Trace("New socket connected with id %s.", socket.ID)
 
 	go socket.handleConnection()
 
@@ -299,9 +299,9 @@ func (s *Server) connectEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
+	gameID := chi.URLParam(r, "gameId")
 
-	game, ok := s.getGame(gameId)
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
@@ -313,7 +313,7 @@ func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	socket := &GameSocket{
-		Id:     uuid.NewString(),
+		ID:     uuid.NewString(),
 		server: s,
 		conn:   conn,
 	}
@@ -323,7 +323,7 @@ func (s *Server) spectateEndpoint(w http.ResponseWriter, r *http.Request) {
 		send(w, http.StatusForbidden, err.Error())
 	}
 
-	game.Log.Trace("New spectator socket connected with id %s.", socket.Id)
+	game.Log.Trace("New spectator socket connected with id %s.", socket.ID)
 
 	go socket.handleConnection()
 }
@@ -348,8 +348,8 @@ func (s *Server) debugServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) debugGame(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
-	game, ok := s.getGame(gameId)
+	gameID := chi.URLParam(r, "gameId")
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
@@ -374,21 +374,21 @@ func (s *Server) debugGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) debugPlayer(w http.ResponseWriter, r *http.Request) {
-	gameId := chi.URLParam(r, "gameId")
-	playerId := chi.URLParam(r, "playerId")
+	gameID := chi.URLParam(r, "gameId")
+	playerID := chi.URLParam(r, "playerId")
 	playerSecret := r.URL.Query().Get("player_secret")
 	if playerSecret == "" {
 		send(w, http.StatusBadRequest, "missing `player_secret` query parameter")
 		return
 	}
 
-	game, ok := s.getGame(gameId)
+	game, ok := s.getGame(gameID)
 	if !ok {
 		send(w, http.StatusNotFound, "game not found")
 		return
 	}
 
-	player, ok := game.GetPlayer(playerId)
+	player, ok := game.GetPlayer(playerID)
 	if !ok {
 		send(w, http.StatusNotFound, "player not found")
 		return
