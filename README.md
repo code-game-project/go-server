@@ -17,8 +17,12 @@ go get github.com/code-game-project/go-server/cg
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
+
+	"github.com/Bananenpro/log"
 
 	"github.com/code-game-project/go-server/cg"
 )
@@ -35,12 +39,12 @@ func (g *Game) OnPlayerLeft(player *cg.Player) {
 	fmt.Println("Player left:", player.Username)
 }
 
-func (g *Game) OnPlayerSocketConnected(player *cg.Player, socket *cg.Socket) {
+func (g *Game) OnPlayerSocketConnected(player *cg.Player, socket *cg.GameSocket) {
 	fmt.Println("Player connected a new socket:", player.Username)
 }
 
-func (g *Game) OnSpectatorConnected(socket *cg.Socket) {
-	fmt.Println("A spectator connected:", socket.Id)
+func (g *Game) OnSpectatorConnected(socket *cg.GameSocket) {
+	fmt.Println("A spectator connected:", socket.ID)
 }
 
 func (g *Game) pollCommands() {
@@ -75,8 +79,9 @@ func main() {
 		MaxPlayersPerGame:       20,
 		DeleteInactiveGameDelay: 15 * time.Minute,
 		KickInactivePlayerDelay: 15 * time.Minute,
-		CGEFilepath:             "my_game.cge",
-		WebRoot:                 "web",
+		EventsPath:              "./my_game.cge",
+		LogoPath:                "./my_logo.png",
+		Frontend:                os.DirFS("./frontend"),
 		DisplayName:             "My Game",
 		Version:                 "1.2.3",
 		Description:             "This is my game.",
@@ -86,7 +91,15 @@ func main() {
 	server.Run(func(cgGame *cg.Game, config json.RawMessage) {
 		var gameConfig struct{} // should be GameConfig from cg-gen-events.
 		err := json.Unmarshal(config, &gameConfig)
+		if err != nil {
+			log.Error(err)
+			return
+		}
 		cgGame.SetConfig(gameConfig)
+
+		game := Game{
+			cg: cgGame,
+		}
 
 		// Register callbacks.
 		cgGame.OnPlayerJoined = game.OnPlayerJoined
@@ -94,9 +107,6 @@ func main() {
 		cgGame.OnPlayerSocketConnected = game.OnPlayerSocketConnected
 		cgGame.OnSpectatorConnected = game.OnSpectatorConnected
 
-		game := Game {
-			cg: cgGame,
-		}
 		// Run the game loop.
 		game.Run()
 	})
