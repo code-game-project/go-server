@@ -34,10 +34,15 @@ func (f *frontendHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		upath += ".html"
 	}
 
-	file, err := httpFS.Open(upath)
+	var file http.File
+	var err error
+	file, err = httpFS.Open(upath)
 	if err != nil {
-		http.ServeFile(w, r, filepath.Join(f.webRoot, "index.html"))
-		return
+		file, err = httpFS.Open(upath + ".html")
+		if err != nil {
+			http.ServeFile(w, r, filepath.Join(f.webRoot, "index.html"))
+			return
+		}
 	}
 	defer file.Close()
 
