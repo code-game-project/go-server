@@ -30,10 +30,6 @@ func (f *frontendHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	upath = path.Clean(upath)
 
-	if path.Ext(upath) == "" {
-		upath += ".html"
-	}
-
 	var file http.File
 	var err error
 	file, err = httpFS.Open(upath)
