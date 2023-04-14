@@ -14,6 +14,7 @@ import (
 func (s *Server) apiRoutes(r chi.Router) {
 	r.Get("/info", s.infoEndpoint)
 	r.Get("/events", s.eventsEndpoint)
+	r.Get("/logo", s.logoEndpoint)
 	r.Get("/games", s.gamesEndpoint)
 	r.Post("/games", s.createGameEndpoint)
 	r.Get("/games/{gameId}", s.gameEndpoint)
@@ -48,14 +49,14 @@ func (s *Server) infoEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) eventsEndpoint(w http.ResponseWriter, r *http.Request) {
-	if s.config.CGEFilepath == "" {
+	if s.config.EventsPath == "" {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	data, err := os.ReadFile(s.config.CGEFilepath)
+	data, err := os.ReadFile(s.config.EventsPath)
 	if err != nil {
-		log.Errorf("Couldn't read '%s': %s", s.config.CGEFilepath, err)
+		log.Errorf("Couldn't read '%s': %s", s.config.EventsPath, err)
 		if os.IsNotExist(err) {
 			w.WriteHeader(http.StatusNotFound)
 		} else {
@@ -66,6 +67,14 @@ func (s *Server) eventsEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write(data)
+}
+
+func (s *Server) logoEndpoint(w http.ResponseWriter, r *http.Request) {
+	if s.config.LogoPath == "" {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+	http.ServeFile(w, r, s.config.EventsPath)
 }
 
 func (s *Server) gamesEndpoint(w http.ResponseWriter, r *http.Request) {

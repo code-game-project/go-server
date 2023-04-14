@@ -1,28 +1,28 @@
 package cg
 
 import (
+	"io/fs"
 	"net/http"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
 
 func (s *Server) frontendRoutes(r chi.Router) {
-	if s.config.WebRoot != "" {
+	if s.config.Frontend != nil {
 		r.Mount("/", &frontendHandler{
-			webRoot: s.config.WebRoot,
+			frontend: s.config.Frontend,
 		})
 	}
 }
 
 type frontendHandler struct {
-	webRoot string
+	frontend fs.FS
 }
 
 func (f *frontendHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	httpFS := http.Dir(f.webRoot)
+	httpFS := http.FS(f.frontend)
 
 	upath := r.URL.Path
 	if !strings.HasPrefix(upath, "/") {
@@ -40,15 +40,18 @@ func (f *frontendHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		file, err = httpFS.Open(upath + ".html")
 		if err != nil {
-			http.ServeFile(w, r, filepath.Join(f.webRoot, "index.html"))
-			return
+			file, err = httpFS.Open("index.html")
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+				return
+			}
 		}
 	}
 	defer file.Close()
 
 	info, err := file.Stat()
 	if err != nil {
-		http.ServeFile(w, r, filepath.Join(f.webRoot, "index.html"))
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 

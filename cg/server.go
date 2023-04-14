@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"math/big"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,10 +38,12 @@ type Server struct {
 type ServerConfig struct {
 	// The port to listen on for new websocket connections. (default: 80)
 	Port int
-	// The path to the CGE file for the current game.
-	CGEFilepath string
-	// All files in this direcory will be served.
-	WebRoot string
+	// The path to the CGE file for the game.
+	EventsPath string
+	// The path to the logo file for the game.
+	LogoPath string
+	// All files in this direcory will be served as part of the frontend.
+	Frontend fs.FS
 	// The maximum number of allowed sockets per player (0 => unlimited).
 	MaxSocketsPerPlayer int
 	// The maximum number of allowed players per game (0 => unlimited).
@@ -90,19 +92,8 @@ func NewServer(name string, config ServerConfig) *Server {
 		server.config.Port = 80
 	}
 
-	if server.config.CGEFilepath == "" {
+	if server.config.EventsPath == "" {
 		log.Warn("No CGE file location specified!")
-	}
-
-	if server.config.WebRoot != "" {
-		stat, err := os.Stat(server.config.WebRoot)
-		if err != nil {
-			log.Errorf("Web root '%s' does not exist.", server.config.WebRoot)
-			server.config.WebRoot = ""
-		} else if !stat.IsDir() {
-			log.Errorf("Web root '%s' is not a directory.", server.config.WebRoot)
-			server.config.WebRoot = ""
-		}
 	}
 
 	if server.config.WebsocketTimeout == 0 {
