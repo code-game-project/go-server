@@ -50,6 +50,14 @@ func (f *frontendHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
+	if info.IsDir() {
+		file, err = httpFS.Open(path.Join(strings.TrimPrefix(upath, "/"), "index.html"))
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+		defer file.Close()
+	}
 
 	http.ServeContent(w, r, upath, info.ModTime(), file)
 }
